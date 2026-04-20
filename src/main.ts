@@ -14,6 +14,7 @@ import {
 	QCardActions,
 	QBtn,
 	QInput,
+	QIcon,
 	Ripple,
 } from 'quasar'
 import quasarLang from 'quasar/lang/ru'
@@ -61,6 +62,7 @@ app.use(Quasar, {
 		QCardActions,
 		QBtn,
 		QInput,
+		QIcon,
 	},
 	directives: {
 		Ripple,

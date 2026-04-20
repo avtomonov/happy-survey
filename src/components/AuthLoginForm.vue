@@ -24,7 +24,7 @@ const onLogin = async (): Promise<void> => {
   const success = await authStore.doLogin(payload)
 
   if (success) {
-    await router.push('/')
+    await router.push('/goal')
   } else {
     authMessage.value = 'Не удалось авторизоваться. Проверьте данные и API.'
   }
