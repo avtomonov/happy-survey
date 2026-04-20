@@ -13,17 +13,38 @@ import {
 	QSeparator,
 	QCardActions,
 	QBtn,
+	QInput,
 	Ripple,
 } from 'quasar'
 import quasarLang from 'quasar/lang/ru'
 import quasarIconSet from 'quasar/icon-set/material-icons'
 import '@quasar/extras/material-icons/material-icons.css'
 import 'quasar/dist/quasar.css'
+import './style.css'
 import App from './App.vue'
+import router from './router'
+import { useAuthStore } from './stores/auth'
 
 const app = createApp(App)
+const pinia = createPinia()
 
-app.use(createPinia())
+router.beforeEach((to) => {
+  const authStore = useAuthStore(pinia)
+  const isAuthenticated = authStore.isAuthenticated
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    return '/login'
+  }
+
+  if (to.meta.guestOnly && isAuthenticated) {
+    return '/'
+  }
+
+  return true
+})
+
+app.use(pinia)
+app.use(router)
 app.use(Quasar, {
 	lang: quasarLang,
 	iconSet: quasarIconSet,
@@ -39,6 +60,7 @@ app.use(Quasar, {
 		QSeparator,
 		QCardActions,
 		QBtn,
+		QInput,
 	},
 	directives: {
 		Ripple,

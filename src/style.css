@@ -1,0 +1,14 @@
+html,
+body,
+#app,
+.q-layout,
+.q-page,
+.q-card,
+.q-toolbar,
+.q-toolbar__title,
+.q-btn {
+	font-family:
+		Helvetica,
+		Arial,
+		sans-serif;
+}
