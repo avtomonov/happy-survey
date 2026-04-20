@@ -15,6 +15,10 @@ import {
 	QBtn,
 	QInput,
 	QIcon,
+	QList,
+	QItem,
+	QItemSection,
+	QItemLabel,
 	Ripple,
 } from 'quasar'
 import quasarLang from 'quasar/lang/ru'
@@ -63,6 +67,10 @@ app.use(Quasar, {
 		QBtn,
 		QInput,
 		QIcon,
+		QList,
+		QItem,
+		QItemSection,
+		QItemLabel,
 	},
 	directives: {
 		Ripple,

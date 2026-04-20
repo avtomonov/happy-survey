@@ -16,10 +16,33 @@ interface IntroduceClientPayload {
   name: string
 }
 
+interface LaunchStudyPayload {
+  title: string
+  clientId: string
+  type: 'happy_survey'
+}
+
+interface IntroduceClientResponse {
+  id?: string
+  clientId?: string
+  client?: {
+    id?: string
+  }
+}
+
+const getClientIdFromResponse = (response: IntroduceClientResponse | null): string | null => {
+  if (!response) {
+    return null
+  }
+
+  return response.clientId ?? response.id ?? response.client?.id ?? null
+}
+
 interface AuthStoreState {
   tokenService: TokenStorageService
   currentEmail: CookieRepository
   currentCompanyName: CookieRepository
+  currentClientId: CookieRepository
   api: ApiService
   LAST_STUDY_COOKIE_NAME: string
 }
@@ -29,44 +52,83 @@ export const useAuthStore = defineStore('AuthStore', {
     tokenService: new TokenStorageService(null),
     currentEmail: new CookieRepository('df86380c2714'),
     currentCompanyName: new CookieRepository('company_name'),
+    currentClientId: new CookieRepository('client_id'),
     api: new ApiService(),
     LAST_STUDY_COOKIE_NAME: 'last_study',
   }),
   getters: {
     isAuthenticated: (state): boolean => Boolean(state.tokenService.tokens.account.value),
     companyName: (state): string => state.currentCompanyName.value ?? '',
+    clientId: (state): string => state.currentClientId.value ?? '',
   },
   actions: {
     setCompanyName(companyName: string): void {
       this.currentCompanyName.value = companyName.trim() || null
     },
 
-    async createClient(): Promise<void> {
+    setClientId(clientId: string | null): void {
+      this.currentClientId.value = clientId?.trim() || null
+    },
+
+    getAdminApiBase(): string {
+      return import.meta.env.VITE_APP_API ?? ''
+    },
+
+    getAuthHeaders(): Record<string, string> {
       const token = this.tokenService.tokens.account.value
-      const companyName = this.companyName
 
       if (!token) {
-        throw new Error('Не найден токен авторизации для создания клиента')
+        throw new Error('Не найден токен авторизации для выполнения запроса')
       }
+
+      return {
+        Authorization: `Bearer ${token}`,
+        locale: 'ru',
+        Accept: 'application/json',
+      }
+    },
+
+    async createClient(): Promise<void> {
+      const companyName = this.companyName
 
       if (!companyName) {
         throw new Error('Не указано название компании')
       }
 
-      const adminApiBase =
-        import.meta.env.VITE_APP_API
-
-      await this.api.request<unknown>(
-        `${adminApiBase}/admin/introduce-client`,
+      const clientResult = await this.api.request<IntroduceClientResponse>(
+        `${this.getAdminApiBase()}/admin/introduce-client`,
         'POST',
-        {
-          Authorization: `Bearer ${token}`,
-          locale: 'ru',
-          Accept: 'application/json',
-        },
+        this.getAuthHeaders(),
         JSON.stringify({
           name: companyName,
         } satisfies IntroduceClientPayload),
+      )
+
+      const clientId = getClientIdFromResponse(clientResult.body)
+
+      if (!clientId) {
+        throw new Error('Не удалось получить clientId созданного клиента')
+      }
+
+      this.setClientId(clientId)
+    },
+
+    async launchCustomStudy(): Promise<void> {
+      const clientId = this.clientId
+
+      if (!clientId) {
+        throw new Error('Не найден clientId для запуска исследования')
+      }
+
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/launch-study`,
+        'POST',
+        this.getAuthHeaders(),
+        JSON.stringify({
+          title: 'Название 1',
+          clientId,
+          type: 'happy_survey',
+        } satisfies LaunchStudyPayload),
       )
     },
 
@@ -89,6 +151,8 @@ export const useAuthStore = defineStore('AuthStore', {
 
       accountStore.selectedStudy.deleteValue()
       this.currentEmail.deleteValue()
+      this.currentCompanyName.deleteValue()
+      this.currentClientId.deleteValue()
     },
     async doLogin(loginPayload: ILoginPayload): Promise<boolean> {
       try {
@@ -110,6 +174,7 @@ export const useAuthStore = defineStore('AuthStore', {
         console.error(e)
 
         this.tokenService.deleteToken(true)
+        this.currentClientId.deleteValue()
 
         if (e instanceof ApiRequestError && e.statusCode === 401) {
           new NotifiedError(e, 'Неверный логин или пароль')
@@ -117,8 +182,10 @@ export const useAuthStore = defineStore('AuthStore', {
           new NotifiedError(e, 'Нет доступа к исследованию. Пожалуйста, обратитесь к вашему менеджеру')
         } else if (e instanceof Error && e.message === 'Не указано название компании') {
           new NotifiedError(e, 'Укажите название компании')
-        } else if (e instanceof Error && e.message === 'Не найден токен авторизации для создания клиента') {
-          new NotifiedError(e, 'Не удалось подготовить авторизацию для создания клиента')
+        } else if (e instanceof Error && e.message === 'Не найден токен авторизации для выполнения запроса') {
+          new NotifiedError(e, 'Не удалось подготовить авторизацию для запроса')
+        } else if (e instanceof Error && e.message === 'Не удалось получить clientId созданного клиента') {
+          new NotifiedError(e, 'Клиент создан, но clientId не вернулся в ответе API')
         } else if (e instanceof Error) {
           new NotifiedError(e, 'Не удалось создать клиента после входа')
         }
