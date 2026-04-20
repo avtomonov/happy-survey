@@ -7,14 +7,24 @@ import { useAuthStore } from '../stores/auth'
 const authStore = useAuthStore()
 const router = useRouter()
 
+const companyName = ref<string>(authStore.companyName)
 const email = ref<string>('')
 const password = ref<string>('')
 const isLoading = ref<boolean>(false)
 const authMessage = ref<string>('')
 
 const onLogin = async (): Promise<void> => {
+  const trimmedCompanyName = companyName.value.trim()
+
+  if (!trimmedCompanyName) {
+    authMessage.value = 'Укажите название компании.'
+    return
+  }
+
   isLoading.value = true
   authMessage.value = ''
+
+  authStore.setCompanyName(trimmedCompanyName)
 
   const payload: ILoginPayload = {
     email: email.value,
@@ -41,6 +51,15 @@ const onLogin = async (): Promise<void> => {
 
     <q-card-section class="q-gutter-md">
       <form class="column q-gutter-md" @submit.prevent="onLogin">
+        <q-input
+          v-model="companyName"
+          label="Название компании"
+          autocomplete="organization"
+          placeholder="ООО Пример"
+          outlined
+          dense
+        />
+
         <q-input
           v-model="email"
           label="Email"
