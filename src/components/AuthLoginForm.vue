@@ -94,7 +94,7 @@ const toggleForm = (): void => {
 
 <template>
   <div class="auth-shell">
-    <div class="auth-logo" aria-label="Happy Job logo">
+    <!-- <div class="auth-logo" aria-label="Happy Job logo">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 389.05 67.03" role="img">
         <g>
           <polygon fill="#5d5d5d" points="93.52 15.55 101.4 15.55 101.4 29.74 115.95 29.74 115.95 15.55 123.84 15.55 123.84 51.41 115.95 51.41 115.95 37.02 101.4 37.02 101.4 51.41 93.52 51.41 93.52 15.55" />
@@ -108,7 +108,7 @@ const toggleForm = (): void => {
           <path fill="#61c13a" d="M56.66,10.17,33.52,0,9.88,9.93,0,34.51l10.17,23L33.12,67,58.21,56.16,67,32.52ZM48.3,47.6A25,25,0,0,1,33,53.29c-8.43.21-14.29-5.36-14.75-5.73a2.13,2.13,0,0,1,2.66-3.34c.46.37,5.46,5,12.32,4.73a20.94,20.94,0,0,0,12.52-4.77A2.13,2.13,0,0,1,48.3,47.6" />
         </g>
       </svg>
-    </div>
+    </div> -->
 
     <div class="auth-container" :class="{ active: isActive }">
       <!-- Login Form -->
@@ -283,25 +283,25 @@ const toggleForm = (): void => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 112px 16px 24px;
   box-sizing: border-box;
+  padding: 20px;
 }
 
-.auth-logo {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  z-index: 3;
+// .auth-logo {
+//   position: absolute;
+//   top: 16px;
+//   left: 50%;
+//   transform: translateX(-50%);
+//   margin: 0;
+//   z-index: 3;
 
-  svg {
-    width: 260px;
-    max-width: 100%;
-    height: auto;
-    display: block;
-  }
-}
+//   svg {
+//     width: 260px;
+//     max-width: 100%;
+//     height: auto;
+//     display: block;
+//   }
+// }
 
 .auth-container {
   position: relative;
