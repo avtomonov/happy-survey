@@ -113,7 +113,7 @@ const proceed = async (): Promise<void> => {
           label="Назад"
           style="min-width: 160px"
           :disable="isLoading"
-          @click="router.push({ name: 'goal' })"
+          @click="router.push({ name: 'home' })"
         />
         <q-btn
           color="primary"

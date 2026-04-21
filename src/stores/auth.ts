@@ -680,6 +680,9 @@ export const useAuthStore = defineStore('AuthStore', {
       const studyCookie = new CookieRepository(this.LAST_STUDY_COOKIE_NAME)
       studyCookie.deleteValue()
 
+      const homeLoaderShownCookie = new CookieRepository('home_loader_shown')
+      homeLoaderShownCookie.deleteValue()
+
       accountStore.selectedStudy.deleteValue()
       this.currentEmail.deleteValue()
       this.currentCompanyName.deleteValue()

@@ -10,10 +10,12 @@ const isLoading = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const isLoaded = ref<boolean>(false)
 const showLoader = ref<boolean>(true)
+const showCards = ref<boolean>(false)
 const emit = defineEmits<{ (event: 'loaded'): void }>()
 
 let finishTimerId: number | null = null
 let hideTimerId: number | null = null
+let cardsTimerId: number | null = null
 
 onMounted(() => {
   finishTimerId = window.setTimeout(() => {
@@ -22,6 +24,10 @@ onMounted(() => {
     hideTimerId = window.setTimeout(() => {
       showLoader.value = false
       emit('loaded')
+
+      cardsTimerId = window.setTimeout(() => {
+        showCards.value = true
+      }, 220)
     }, 520)
   }, 2925)
 })
@@ -33,6 +39,10 @@ onBeforeUnmount(() => {
 
   if (hideTimerId !== null) {
     window.clearTimeout(hideTimerId)
+  }
+
+  if (cardsTimerId !== null) {
+    window.clearTimeout(cardsTimerId)
   }
 })
 
@@ -95,53 +105,33 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
     <q-page class="column items-center justify-center q-pa-md q-gutter-lg">
       <div class="text-h5 text-center">Для какой цели вы хотите использовать конструктор?</div>
 
-      <div class="row q-gutter-md justify-center">
+      <div v-if="showCards" class="row q-gutter-md justify-center goal-cards">
         <q-card
           clickable
-          class="goal-card cursor-pointer"
+          class="goal-card appear-1 cursor-pointer"
           @click="selectGoal('custom')"
         >
-          <q-card-section class="column items-center q-gutter-sm">
+          <q-card-section class="goal-card-content column items-center q-gutter-sm">
             <q-icon name="edit_note" size="48px" color="primary" />
-            <div class="text-h6 text-center">Свой опрос с нуля</div>
-            <div class="text-body2 text-grey-7 text-center">
+            <div class="text-h6 text-center goal-title">Свой опрос с нуля</div>
+            <div class="text-body2 text-grey-7 text-center goal-description">
               Создайте собственный опрос<br />с нужными вам вопросами
             </div>
           </q-card-section>
-          <q-card-actions align="center">
-            <q-btn
-              color="primary"
-              label="Выбрать"
-              unelevated
-              :loading="isLoading"
-              :disable="isLoading"
-              @click.stop="selectGoal('custom')"
-            />
-          </q-card-actions>
         </q-card>
 
         <q-card
           clickable
-          class="goal-card cursor-pointer"
+          class="goal-card appear-2 cursor-pointer"
           @click="selectGoal('engagement')"
         >
-          <q-card-section class="column items-center q-gutter-sm">
+          <q-card-section class="goal-card-content column items-center q-gutter-sm">
             <q-icon name="people" size="48px" color="secondary" />
-            <div class="text-h6 text-center">Исследование вовлеченности</div>
-            <div class="text-body2 text-grey-7 text-center">
+            <div class="text-h6 text-center goal-title">Исследование вовлеченности</div>
+            <div class="text-body2 text-grey-7 text-center goal-description">
               Готовый шаблон для измерения<br />вовлеченности сотрудников
             </div>
           </q-card-section>
-          <q-card-actions align="center">
-            <q-btn
-              color="secondary"
-              label="Выбрать"
-              unelevated
-              :loading="isLoading"
-              :disable="isLoading"
-              @click.stop="selectGoal('engagement')"
-            />
-          </q-card-actions>
         </q-card>
       </div>
 
@@ -280,13 +270,93 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
 }
 
 .goal-card {
-  width: 240px;
-  min-height: 220px;
-  transition: box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+  width: 270px;
+  min-height: 235px;
+  border-radius: 18px;
+  border: 1px solid rgba(97, 193, 58, 0.22);
+  background: linear-gradient(165deg, #ffffff 0%, #f7fcf4 100%);
+  box-shadow: 0 12px 24px rgba(18, 29, 14, 0.08);
+  opacity: 0;
+  transform: translateY(28px) scale(0.97);
+}
+
+.goal-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 100% 0%, rgba(97, 193, 58, 0.16), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
 }
 
 .goal-card:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 18px 36px rgba(18, 29, 14, 0.18);
+  border-color: rgba(97, 193, 58, 0.38);
+}
+
+.goal-card:hover::before {
+  opacity: 1;
+}
+
+.goal-card-content {
+  min-height: 235px;
+  justify-content: center;
+  padding: 22px 18px;
+}
+
+.goal-title {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.goal-description {
+  min-height: 54px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  line-height: 1.35;
+}
+
+.goal-cards {
+  opacity: 0;
+  animation: cardsGroupIn 0.5s ease-out 0.08s forwards;
+}
+
+.goal-card.appear-1 {
+  animation: cardIn 0.6s cubic-bezier(0.18, 0.72, 0.22, 1) 0.16s forwards;
+}
+
+.goal-card.appear-2 {
+  animation: cardIn 0.6s cubic-bezier(0.18, 0.72, 0.22, 1) 0.32s forwards;
+}
+
+@keyframes cardsGroupIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 
 @media (max-width: 768px) {

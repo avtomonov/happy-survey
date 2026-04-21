@@ -44,7 +44,7 @@ router.beforeEach((to) => {
   }
 
   if (to.meta.guestOnly && isAuthenticated) {
-    return '/'
+		return '/home'
   }
 
   return true

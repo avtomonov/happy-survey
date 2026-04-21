@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const isActive = ref<boolean>(false)
+const isActive = ref<boolean>(true)
 
 // Login form
 const loginCompanyName = ref<string>(authStore.companyName)

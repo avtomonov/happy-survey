@@ -63,7 +63,7 @@ const doLogout = (): void => {
           />
         </q-toolbar-title>
  
-        <q-btn flat round icon="logout" title="Выйти" @click="doLogout" />
+        <q-btn flat icon="logout" label="Выйти" title="Выйти" @click="doLogout" />
       </q-toolbar>
     </q-header>
 

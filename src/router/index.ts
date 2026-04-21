@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import HomePage from '../pages/HomePage.vue'
 import LoginPage from '../pages/LoginPage.vue'
-import GoalSelectPage from '../pages/GoalSelectPage.vue'
 import QuestionTypesPage from '../pages/QuestionTypesPage.vue'
 import QuestionSetPage from '../pages/QuestionSetPage.vue'
 import DistributionPage from '../pages/DistributionPage.vue'
@@ -10,16 +9,20 @@ import DistributionPage from '../pages/DistributionPage.vue'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
+    redirect: '/login',
+  },
+  {
+    path: '/home',
     name: 'home',
     component: HomePage,
     meta: { requiresAuth: true },
   },
-  {
-    path: '/goal',
-    name: 'goal',
-    component: GoalSelectPage,
-    meta: { requiresAuth: true },
-  },
+  // {
+  //   path: '/goal',
+  //   name: 'goal',
+  //   component: GoalSelectPage,
+  //   meta: { requiresAuth: true },
+  // },
   {
     path: '/login',
     name: 'login',
