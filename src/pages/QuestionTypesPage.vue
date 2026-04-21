@@ -47,6 +47,22 @@ const selectedType = ref<string | null>(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
 
+const wait = (ms: number): Promise<void> => new Promise((resolve) => {
+  window.setTimeout(resolve, ms)
+})
+
+const waitForQuestions = async (cycleId: string): Promise<void> => {
+  while (true) {
+    const remoteQuestions = await authStore.getQuestions(cycleId)
+
+    if (remoteQuestions.length > 0) {
+      return
+    }
+
+    await wait(1000)
+  }
+}
+
 const selectType = (typeId: string): void => {
   selectedType.value = typeId
 }
@@ -75,6 +91,9 @@ const proceed = async (): Promise<void> => {
       cycleId,
       questions.map((q) => q.questionId),
     )
+
+    await waitForQuestions(cycleId)
+
     await router.push({ name: 'question-set', query: { type: selectedType.value } })
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : 'Не удалось скопировать вопросы'
@@ -109,7 +128,14 @@ const proceed = async (): Promise<void> => {
 
       <div class="text-h5 text-center q-mb-xl">Выберите тип вопросов</div>
 
-      <div class="question-types-container full-width">
+      <div v-if="isLoading" class="column items-center q-gutter-md q-my-xl">
+        <q-spinner size="48px" color="primary" />
+        <div class="text-body2 text-grey-7 text-center">
+          Копируем вопросы и ждём, пока они появятся на сервере
+        </div>
+      </div>
+
+      <div v-else class="question-types-container full-width">
         <div v-for="category in categories" :key="category.id" class="q-mb-xl">
           <div class="text-subtitle1 text-weight-bold q-mb-md category-heading">
             {{ category.title }}
