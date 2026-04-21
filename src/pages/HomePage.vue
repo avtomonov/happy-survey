@@ -88,14 +88,14 @@ const surveyCardCategories: SurveyCardCategory[] = [
         iconColor: 'primary',
         kind: 'template',
       },
-      {
-        id: 'focus_group',
-        title: 'Отбор для фокус-группы',
-        description: 'Шаблон для предварительного отбора участников исследования',
-        icon: 'groups',
-        iconColor: 'primary',
-        kind: 'template',
-      },
+      // {
+      //   id: 'focus_group',
+      //   title: 'Отбор для фокус-группы',
+      //   description: 'Шаблон для предварительного отбора участников исследования',
+      //   icon: 'groups',
+      //   iconColor: 'primary',
+      //   kind: 'template',
+      // },
       {
         id: 'software',
         title: 'Оценка программного обеспечения',
@@ -144,6 +144,32 @@ const emit = defineEmits<{ (event: 'loaded'): void }>()
 let finishTimerId: number | null = null
 let hideTimerId: number | null = null
 let cardsTimerId: number | null = null
+
+interface CharSpan {
+  char: string
+  charIndex: number
+  globalCharIndex: number
+}
+
+interface WordSpan {
+  word: string
+  wordIndex: number
+  chars: CharSpan[]
+}
+
+function splitTextIntoWords(text: string): WordSpan[] {
+  const words = text.split(' ')
+  let globalCharIndex = 0
+  return words.map((word, wordIndex) => ({
+    word,
+    wordIndex,
+    chars: word.split('').map((char, charIndex) => {
+      const charObj = { char, charIndex, globalCharIndex }
+      globalCharIndex++
+      return charObj
+    }),
+  }))
+}
 
 onMounted(() => {
   if (hasShownLoader) {
@@ -281,7 +307,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
 </script>
 
 <template>
-  <div v-if="showLoader" class="loader-container" :class="{ 'fade-out': isLoaded }">
+  <!-- <div v-if="showLoader" class="loader-container" :class="{ 'fade-out': isLoaded }">
     <svg
       viewBox="-3 -3 135 28"
       fill="none"
@@ -306,11 +332,30 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
         <path class="letter-path letter-8" d="M115.848 5.1955H121.218C122.323 5.12296 123.412 5.49214 124.245 6.22188C124.51 6.4811 124.717 6.79296 124.854 7.13737C124.992 7.48178 125.055 7.85109 125.041 8.22153C125.059 8.74073 124.925 9.25389 124.654 9.69742C124.384 10.1409 123.989 10.4953 123.519 10.7167C124.158 10.8734 124.723 11.2463 125.118 11.772C125.513 12.2978 125.714 12.944 125.687 13.6011C125.687 15.7158 123.961 16.7776 121.351 16.7776H115.839L115.848 5.1955ZM120.688 9.90266C121.811 9.90266 122.528 9.53989 122.528 8.64624C122.528 7.88531 121.935 7.45175 120.856 7.45175H118.343V9.90266H120.688ZM121.369 14.5656C122.493 14.5656 123.138 14.1674 123.138 13.2738C123.138 12.3801 122.563 12.0173 121.254 12.0173H118.307V14.5656H121.369Z" fill="transparent" stroke="#5D5D5D" stroke-width="1" />
       </g>
     </svg>
-  </div>
+  </div> -->
 
   <AppLayout>
     <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
-      <div v-if="!isLoading" class="text-h5 text-center">Для какой цели вы хотите использовать конструктор?</div>
+      <div v-if="!isLoading" class="text-h2 text-center title-with-animation">
+        Для какой цели вы хотите использовать конструктор?
+        <!-- <span
+          v-for="word in splitTextIntoWords('Для какой цели вы хотите использовать конструктор?')"
+          :key="word.wordIndex"
+          class="word"
+          :data-word="word.word"
+          :style="{ '--word-index': word.wordIndex }"
+        >
+          <span
+            v-for="char in word.chars"
+            :key="char.charIndex"
+            class="char"
+            :data-char="char.char"
+            :style="{ '--global-char-index': char.globalCharIndex }"
+          >
+            {{ char.char }}
+          </span> 
+        </span>-->
+      </div>
 
       <div v-if="isLoading" class="column items-center q-gutter-md q-my-md">
         <q-spinner size="48px" color="primary" />
@@ -319,13 +364,13 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
         </div>
       </div>
 
-      <div v-if="showCards && !isLoading" class="survey-sections full-width">
+      <div v-if="!isLoading" class="survey-sections full-width">
         <div
           v-for="category in surveyCardCategories"
           :key="category.id"
           class="survey-section"
         >
-          <div v-if="category.title" class="text-subtitle1 text-weight-bold q-mb-md category-heading">
+          <div v-if="category.title" class="text-subtitle1 text-weight-bold q-mb-md category-heading ">
             {{ category.title }}
           </div>
 
@@ -336,11 +381,11 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
               clickable
               v-ripple
               class="goal-card cursor-pointer"
-              :class="showCards ? `appear-card-${Math.min(index + 1, 3)}` : ''"
+              :class="`appear-card-${Math.min(index + 1, 3)}`"
               @click="openSurveyCard(card)"
             >
               <q-card-section class="goal-card-content column items-center q-gutter-sm">
-                <q-icon :name="card.icon" size="48px" :color="card.iconColor" />
+                <q-icon :name="card.icon" size="48px" color="positive" />
                 <div class="text-h6 text-center goal-title">{{ card.title }}</div>
                 <div class="text-body2 text-grey-7 text-center goal-description">
                   {{ card.description }}
@@ -504,8 +549,8 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   min-height: 235px;
   border-radius: 18px;
   border: 1px solid rgba(97, 193, 58, 0.22);
-  background: linear-gradient(165deg, #ffffff 0%, #f7fcf4 100%);
-  box-shadow: 0 12px 24px rgba(18, 29, 14, 0.08);
+  background: transparent;
+  box-shadow: none;
   opacity: 0;
   transform: translateY(28px) scale(0.97);
 }
@@ -514,7 +559,6 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 100% 0%, rgba(97, 193, 58, 0.16), transparent 45%);
   opacity: 0;
   transition: opacity 0.35s ease;
   pointer-events: none;
@@ -559,6 +603,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   max-width: 1120px;
   margin-left: auto;
   margin-right: auto;
+  margin-top: 60px;
 }
 
 .appear-card-1 {
@@ -583,6 +628,39 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
     opacity: 1;
     transform: translateY(0) scale(1);
     filter: blur(0);
+  }
+}
+
+.title-with-animation {
+  display: flex;
+  gap: 0.25em;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 50px;
+  margin-top: 100px;
+}
+
+.word {
+  display: inline-flex;
+  gap: 0;
+}
+
+.char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: charAppear 0.1s ease-in-out forwards;
+  animation-delay: calc(var(--global-char-index, 0) * 0.03s);
+}
+
+@keyframes charAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

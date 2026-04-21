@@ -704,6 +704,7 @@ export const useAuthStore = defineStore('AuthStore', {
         this.tokenService.tokens.account.value = loginResult.body.token
         this.tokenService.saveTokens()
         this.currentEmail.value = btoa(loginPayload.email)
+        this.setCompanyName(loginPayload.companyName)
         await this.createClient()
         await this.api.loadSpec()
 
