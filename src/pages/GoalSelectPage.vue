@@ -57,7 +57,7 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
   try {
     if (goal === 'custom') {
       await authStore.launchCustomStudy()
-      await router.push({ name: 'question-types' })
+      await router.push({ name: 'home', query: { goal: 'custom' } })
       return
     }
 

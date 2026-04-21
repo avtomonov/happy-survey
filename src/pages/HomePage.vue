@@ -2,8 +2,133 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../layouts/AppLayout.vue'
+import { getQuestionsByType, TEMPLATE_CYCLE_ID } from '../data/questionSets'
 import CookieRepository from '../services/Repositories/CookieRepository'
 import { useAuthStore } from '../stores/auth'
+
+interface SurveyCard {
+  id: string
+  title: string
+  description: string
+  icon: string
+  iconColor: string
+  kind: 'custom' | 'template' | 'engagement'
+}
+
+interface SurveyCardCategory {
+  id: string
+  title: string
+  cards: SurveyCard[]
+}
+
+const surveyCardCategories: SurveyCardCategory[] = [
+  {
+    id: 'main',
+    title: '',
+    cards: [
+      {
+        id: 'custom',
+        title: 'Свой опрос с нуля',
+        description: 'Создайте собственный опрос с нужными вам вопросами',
+        icon: 'edit_note',
+        iconColor: 'primary',
+        kind: 'custom',
+      },
+      {
+        id: 'engagement',
+        title: 'Исследование вовлеченности',
+        description: 'Готовый шаблон для измерения вовлеченности сотрудников',
+        icon: 'people',
+        iconColor: 'secondary',
+        kind: 'engagement',
+      },
+    ],
+  },
+  {
+    id: 'marketing',
+    title: 'Маркетинг, периодические и пульс (мес, неделя, день) для клиентов',
+    cards: [
+      {
+        id: 'nps',
+        title: 'NPS',
+        description: 'Готовый шаблон опроса для оценки лояльности клиентов',
+        icon: 'insights',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'csat',
+        title: 'CSAT',
+        description: 'Шаблон для измерения удовлетворенности клиентов',
+        icon: 'sentiment_satisfied',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'ces',
+        title: 'CES',
+        description: 'Опрос для оценки усилий клиента при взаимодействии',
+        icon: 'bolt',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'our_products',
+        title: 'Наши товары',
+        description: 'Шаблон для обратной связи по линейке товаров',
+        icon: 'inventory_2',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'product_quality',
+        title: 'Оценка качества продукта',
+        description: 'Готовый опрос для проверки восприятия качества продукта',
+        icon: 'verified',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'focus_group',
+        title: 'Отбор для фокус-группы',
+        description: 'Шаблон для предварительного отбора участников исследования',
+        icon: 'groups',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'software',
+        title: 'Оценка программного обеспечения',
+        description: 'Опрос для сбора обратной связи по цифровому продукту',
+        icon: 'laptop_chromebook',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+    ],
+  },
+  {
+    id: 'education',
+    title: 'Образование',
+    cards: [
+      {
+        id: 'school',
+        title: 'Оценка деятельности школы глазами родителей',
+        description: 'Готовый шаблон для сбора оценки школьной среды и процессов',
+        icon: 'school',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+      {
+        id: 'courses',
+        title: 'Оценка образовательных курсов',
+        description: 'Шаблон для обратной связи по курсам и программам обучения',
+        icon: 'menu_book',
+        iconColor: 'primary',
+        kind: 'template',
+      },
+    ],
+  },
+]
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -56,7 +181,23 @@ onBeforeUnmount(() => {
   }
 })
 
-const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
+const wait = (ms: number): Promise<void> => new Promise((resolve) => {
+  window.setTimeout(resolve, ms)
+})
+
+const waitForQuestions = async (cycleId: string): Promise<void> => {
+  while (true) {
+    const remoteQuestions = await authStore.getQuestions(cycleId)
+
+    if (remoteQuestions.length > 0) {
+      return
+    }
+
+    await wait(1000)
+  }
+}
+
+const openCustomSurvey = async (): Promise<void> => {
   if (isLoading.value) {
     return
   }
@@ -65,13 +206,8 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
   isLoading.value = true
 
   try {
-    if (goal === 'custom') {
-      await authStore.launchCustomStudy()
-      await router.push({ name: 'question-types' })
-      return
-    }
-
-    await router.push({ name: 'home', query: { goal } })
+    await authStore.launchCustomStudy()
+    await router.push({ name: 'question-set' })
   } catch (error: unknown) {
     errorMessage.value =
       error instanceof Error
@@ -80,6 +216,67 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
   } finally {
     isLoading.value = false
   }
+}
+
+const openTemplateSurvey = async (typeId: string): Promise<void> => {
+  if (isLoading.value) {
+    return
+  }
+
+  errorMessage.value = ''
+  isLoading.value = true
+
+  const questions = getQuestionsByType(typeId)
+  if (questions.length === 0) {
+    isLoading.value = false
+    await router.push({ name: 'question-set', query: { type: typeId } })
+    return
+  }
+
+  try {
+    await authStore.launchCustomStudy()
+
+    const cycleId = authStore.cycleId
+    if (!cycleId) {
+      throw new Error('Не удалось создать цикл опроса для загрузки шаблона')
+    }
+
+    await authStore.copyQuestions(
+      TEMPLATE_CYCLE_ID,
+      cycleId,
+      questions.map((question) => question.questionId),
+    )
+
+    await waitForQuestions(cycleId)
+
+    await router.push({ name: 'question-set', query: { type: typeId } })
+  } catch (error: unknown) {
+    errorMessage.value = error instanceof Error ? error.message : 'Не удалось скопировать вопросы'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const openEngagementSurvey = async (): Promise<void> => {
+  if (isLoading.value) {
+    return
+  }
+
+  errorMessage.value = 'Сценарий исследования вовлеченности пока не настроен отдельно.'
+}
+
+const openSurveyCard = async (card: SurveyCard): Promise<void> => {
+  if (card.kind === 'custom') {
+    await openCustomSurvey()
+    return
+  }
+
+  if (card.kind === 'engagement') {
+    await openEngagementSurvey()
+    return
+  }
+
+  await openTemplateSurvey(card.id)
 }
 </script>
 
@@ -115,34 +312,43 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
     <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
       <div class="text-h5 text-center">Для какой цели вы хотите использовать конструктор?</div>
 
-      <div v-show="showCards" class="row q-gutter-md justify-center goal-cards">
-        <q-card
-          clickable
-          class="goal-card appear-1 cursor-pointer"
-          @click="selectGoal('custom')"
-        >
-          <q-card-section class="goal-card-content column items-center q-gutter-sm">
-            <q-icon name="edit_note" size="48px" color="primary" />
-            <div class="text-h6 text-center goal-title">Свой опрос с нуля</div>
-            <div class="text-body2 text-grey-7 text-center goal-description">
-              Создайте собственный опрос<br />с нужными вам вопросами
-            </div>
-          </q-card-section>
-        </q-card>
+      <div v-if="isLoading" class="column items-center q-gutter-md q-my-md">
+        <q-spinner size="48px" color="primary" />
+        <div class="text-body2 text-grey-7 text-center">
+          Подготавливаем опрос и загружаем выбранный набор вопросов
+        </div>
+      </div>
 
-        <q-card
-          clickable
-          class="goal-card appear-2 cursor-pointer"
-          @click="selectGoal('engagement')"
+      <div v-show="showCards" class="survey-sections full-width">
+        <div
+          v-for="category in surveyCardCategories"
+          :key="category.id"
+          class="survey-section"
         >
-          <q-card-section class="goal-card-content column items-center q-gutter-sm">
-            <q-icon name="people" size="48px" color="secondary" />
-            <div class="text-h6 text-center goal-title">Исследование вовлеченности</div>
-            <div class="text-body2 text-grey-7 text-center goal-description">
-              Готовый шаблон для измерения<br />вовлеченности сотрудников
-            </div>
-          </q-card-section>
-        </q-card>
+          <div v-if="category.title" class="text-subtitle1 text-weight-bold q-mb-md category-heading">
+            {{ category.title }}
+          </div>
+
+          <div class="row q-gutter-md justify-center survey-card-grid">
+            <q-card
+              v-for="(card, index) in category.cards"
+              :key="card.id"
+              clickable
+              v-ripple
+              class="goal-card cursor-pointer"
+              :class="showCards ? `appear-card-${Math.min(index + 1, 3)}` : ''"
+              @click="openSurveyCard(card)"
+            >
+              <q-card-section class="goal-card-content column items-center q-gutter-sm">
+                <q-icon :name="card.icon" size="48px" :color="card.iconColor" />
+                <div class="text-h6 text-center goal-title">{{ card.title }}</div>
+                <div class="text-body2 text-grey-7 text-center goal-description">
+                  {{ card.description }}
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
       </div>
 
       <div v-if="errorMessage" class="text-negative text-body2 text-center">
@@ -279,6 +485,18 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
   }
 }
 
+.survey-sections {
+  max-width: 1120px;
+}
+
+.survey-section {
+  margin-top: 20px;
+}
+
+.survey-card-grid {
+  align-items: stretch;
+}
+
 .goal-card {
   position: relative;
   overflow: hidden;
@@ -334,26 +552,25 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
   line-height: 1.35;
 }
 
-.goal-cards {
-  opacity: 0;
-  animation: cardsGroupIn 0.5s ease-out 0.08s forwards;
+.category-heading {
+  color: #3f4a39;
+  border-left: 4px solid #61c13a;
+  padding-left: 12px;
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.goal-card.appear-1 {
+.appear-card-1 {
   animation: cardIn 0.6s cubic-bezier(0.18, 0.72, 0.22, 1) 0.16s forwards;
 }
 
-.goal-card.appear-2 {
+.appear-card-2 {
   animation: cardIn 0.6s cubic-bezier(0.18, 0.72, 0.22, 1) 0.32s forwards;
 }
 
-@keyframes cardsGroupIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.appear-card-3 {
+  animation: cardIn 0.6s cubic-bezier(0.18, 0.72, 0.22, 1) 0.48s forwards;
 }
 
 @keyframes cardIn {
@@ -372,6 +589,11 @@ const selectGoal = async (goal: 'custom' | 'engagement'): Promise<void> => {
 @media (max-width: 768px) {
   .loader-container {
     padding: 0 20px;
+  }
+
+  .goal-card {
+    width: 100%;
+    max-width: 320px;
   }
 }
 </style>

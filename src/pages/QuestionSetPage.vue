@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../layouts/AppLayout.vue'
 import { getQuestionTypeConfig, getQuestionsByType, type SurveyQuestion } from '../data/questionSets'
@@ -11,6 +11,14 @@ const authStore = useAuthStore()
 
 const selectedTypeId = ref<string>(String(route.query.type ?? ''))
 const selectedType = ref(getQuestionTypeConfig(selectedTypeId.value))
+const surveyTypeLabel = computed(() => selectedType.value?.label ?? 'Свой опрос с нуля')
+const emptyStateMessage = computed(() => {
+  if (selectedType.value) {
+    return 'Для выбранного типа пока нет вопросов.'
+  }
+
+  return 'В этом опросе пока нет вопросов. Создайте новый вопрос.'
+})
 
 const localQuestions = ref<SurveyQuestion[]>([])
 const isLoadingQuestions = ref(false)
@@ -148,7 +156,7 @@ const saveQuestion = async (questionId: string): Promise<void> => {
 }
 
 const goBack = (): void => {
-  router.push({ name: 'question-types' })
+  router.push({ name: 'home' })
 }
 </script>
 
@@ -157,7 +165,7 @@ const goBack = (): void => {
     <q-page class="q-pa-lg">
       <div class="row justify-end q-gutter-sm q-mb-lg">
         <q-btn
-          label="Назад к типам"
+          label="Назад к видам"
           color="primary"
           outline
           style="min-width: 160px"
@@ -175,7 +183,7 @@ const goBack = (): void => {
       <div class="column q-gutter-md q-mb-lg">
         <div class="text-h5">Набор вопросов</div>
         <div class="text-subtitle1 text-grey-8">
-          Тип: {{ selectedType?.label ?? 'Не выбран' }}
+          Тип: {{ surveyTypeLabel }}
         </div>
         <div class="text-body2 text-grey-7">
           Всего вопросов: {{ localQuestions.length }}
@@ -191,7 +199,7 @@ const goBack = (): void => {
       </div>
 
       <div v-else-if="localQuestions.length === 0" class="text-negative text-body1 q-mb-md">
-        Для выбранного типа пока нет вопросов.
+        {{ emptyStateMessage }}
       </div>
 
       <div v-else class="column q-gutter-md">
