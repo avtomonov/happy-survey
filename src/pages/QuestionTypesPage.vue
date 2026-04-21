@@ -2,8 +2,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../layouts/AppLayout.vue'
+import { getQuestionsByType, TEMPLATE_CYCLE_ID } from '../data/questionSets'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 interface QuestionType {
   id: string
@@ -41,20 +44,69 @@ const categories: Category[] = [
 ]
 
 const selectedType = ref<string | null>(null)
+const isLoading = ref(false)
+const errorMessage = ref('')
 
 const selectType = (typeId: string): void => {
   selectedType.value = typeId
 }
 
-const proceed = (): void => {
-  if (!selectedType.value) return
-  router.push({ name: 'question-set', query: { type: selectedType.value } })
+const proceed = async (): Promise<void> => {
+  if (!selectedType.value || isLoading.value) return
+
+  const cycleId = authStore.cycleId
+  if (!cycleId) {
+    await router.push({ name: 'question-set', query: { type: selectedType.value } })
+    return
+  }
+
+  const questions = getQuestionsByType(selectedType.value)
+  if (questions.length === 0) {
+    await router.push({ name: 'question-set', query: { type: selectedType.value } })
+    return
+  }
+
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    await authStore.copyQuestions(
+      TEMPLATE_CYCLE_ID,
+      cycleId,
+      questions.map((q) => q.questionId),
+    )
+    await router.push({ name: 'question-set', query: { type: selectedType.value } })
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : 'Не удалось скопировать вопросы'
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
 <template>
   <AppLayout>
     <q-page class="column items-center q-pa-lg">
+      <div class="row justify-end q-gutter-sm q-mb-lg full-width">
+        <q-btn
+          outline
+          color="primary"
+          label="Назад"
+          style="min-width: 160px"
+          :disable="isLoading"
+          @click="router.push({ name: 'goal' })"
+        />
+        <q-btn
+          color="primary"
+          label="Продолжить"
+          unelevated
+          style="min-width: 160px"
+          :disable="!selectedType || isLoading"
+          :loading="isLoading"
+          @click="proceed"
+        />
+      </div>
+
       <div class="text-h5 text-center q-mb-xl">Выберите тип вопросов</div>
 
       <div class="question-types-container full-width">
@@ -89,16 +141,9 @@ const proceed = (): void => {
         </div>
       </div>
 
-      <q-btn
-        color="primary"
-        label="Продолжить"
-        unelevated
-        size="lg"
-        class="q-mt-md full-width"
-        style="max-width: 400px"
-        :disable="!selectedType"
-        @click="proceed"
-      />
+      <div v-if="errorMessage" class="text-negative text-body2 q-mt-sm text-center">
+        {{ errorMessage }}
+      </div>
     </q-page>
   </AppLayout>
 </template>

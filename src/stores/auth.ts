@@ -122,12 +122,117 @@ const DEFAULT_SURVEY_LOCALIZED_ATTRIBUTES: Record<string, Record<string, unknown
   },
 }
 
+interface SetQuestionTypePayload {
+  questionId: string
+  type: string
+}
+
+interface SetSubQuestionTitlePayload {
+  subQuestionId: string
+  title: string
+}
+
+interface SetQuestionTitlePayload {
+  questionId: string
+  title: string
+}
+
+interface SetSubQuestionAttributesPayload {
+  subQuestionId: string
+  localizedAttributes: Record<string, unknown>
+}
+
+interface SetQuestionMetricPayload {
+  questionId: string
+  metricId: string
+}
+
+interface SetQuestionAttributesPayload {
+  questionId: string
+  attributes: Record<string, unknown>
+  localizedAttributes: Record<string, unknown>
+}
+
+interface SetChoiceTitlePayload {
+  choiceId: string
+  title: string
+}
+
+interface SetChoiceMarkPayload {
+  choiceId: string
+  mark: number
+}
+
+interface SetChoiceAttributesPayload {
+  choiceId: string
+  localizedAttributes: Record<string, unknown>
+}
+
+interface LinkThemeTreeToQuestionPayload {
+  questionId: string
+  themeTreeId: string
+}
+
+interface CreateGeneralLinkPayload {
+  demo: boolean
+  title: string
+  locale: string
+  generalLinkId: string
+  surveyId: string
+  additionalFilters: unknown[]
+  status: string
+  disableFilterWithoutVirtualRespondents: boolean
+  filtersConfig: {
+    type: string
+    permissions: Record<string, unknown>
+    filterId: string | null
+    maxCompletionPercent: number | null
+  }
+}
+
+export interface RemoteGeneralLink {
+  id?: string
+  generalLinkId?: string
+  title?: string
+  status?: string
+  url?: string
+  link?: string
+  locale?: string
+  surveyId?: string
+}
+
+export interface RemoteChoice {
+  id?: string
+  choiceId?: string
+  title?: string
+  mark?: number
+}
+
+export interface RemoteSubQuestion {
+  id?: string
+  subQuestionId?: string
+  title?: string
+}
+
+export interface RemoteQuestion {
+  id?: string
+  questionId?: string
+  type?: string
+  title?: string
+  queueCycle?: number
+  subQuestion?: RemoteSubQuestion
+  subQuestions?: RemoteSubQuestion[]
+  choices?: RemoteChoice[]
+}
+
 interface AuthStoreState {
   tokenService: TokenStorageService
   currentEmail: CookieRepository
   currentCompanyName: CookieRepository
   currentClientId: CookieRepository
   currentStudyId: CookieRepository
+  currentCycleId: CookieRepository
+  currentSurveyId: CookieRepository
   currentStudyToken: CookieRepository
   api: ApiService
   LAST_STUDY_COOKIE_NAME: string
@@ -140,6 +245,8 @@ export const useAuthStore = defineStore('AuthStore', {
     currentCompanyName: new CookieRepository('company_name'),
     currentClientId: new CookieRepository('client_id'),
     currentStudyId: new CookieRepository('current_study_id'),
+    currentCycleId: new CookieRepository('current_cycle_id'),
+    currentSurveyId: new CookieRepository('current_survey_id'),
     currentStudyToken: new CookieRepository('fa9f01351858'),
     api: new ApiService(),
     LAST_STUDY_COOKIE_NAME: 'last_study',
@@ -149,6 +256,8 @@ export const useAuthStore = defineStore('AuthStore', {
     companyName: (state): string => state.currentCompanyName.value ?? '',
     clientId: (state): string => state.currentClientId.value ?? '',
     studyId: (state): string => state.currentStudyId.value ?? '',
+    cycleId: (state): string => state.currentCycleId.value ?? '',
+    surveyId: (state): string => state.currentSurveyId.value ?? '',
   },
   actions: {
     setCompanyName(companyName: string): void {
@@ -189,6 +298,20 @@ export const useAuthStore = defineStore('AuthStore', {
         locale: 'ru',
         Accept: 'application/json',
       }
+    },
+
+    async renameClient(name: string): Promise<void> {
+      const clientId = this.clientId
+      if (!clientId) throw new Error('Не найден clientId')
+
+      await this.api.request(
+        `${this.getAdminApiBase()}/admin/rename-client`,
+        'POST',
+        { ...this.getAuthHeaders(), 'content-type': 'application/json' },
+        JSON.stringify({ clientId, name }),
+      )
+
+      this.setCompanyName(name)
     },
 
     async createClient(): Promise<void> {
@@ -289,11 +412,12 @@ export const useAuthStore = defineStore('AuthStore', {
         throw new Error('Не удалось получить cycleId созданного цикла')
       }
 
+      this.currentCycleId.value = cycleId
       return cycleId
     },
 
     async planSurvey(cycleId: string): Promise<void> {
-      await this.api.request<unknown>(
+      const result = await this.api.request<{ id?: string; surveyId?: string; survey?: { id?: string } }>(
         `${this.getAdminApiBase()}/admin/plan-survey`,
         'POST',
         this.getStudyAuthHeaders(),
@@ -304,6 +428,237 @@ export const useAuthStore = defineStore('AuthStore', {
           localizedAttributes: DEFAULT_SURVEY_LOCALIZED_ATTRIBUTES,
         } satisfies PlanSurveyPayload),
       )
+      const body = result.body
+      const surveyId = body?.surveyId ?? body?.id ?? body?.survey?.id ?? null
+      if (surveyId) {
+        this.currentSurveyId.value = surveyId
+      } else {
+        // fallback: fetch surveys list to find the surveyId
+        await this.fetchAndSaveSurveyId(cycleId)
+      }
+    },
+
+    async fetchAndSaveSurveyId(cycleId: string): Promise<void> {
+      try {
+        const surveys = await this.getSurveys(cycleId)
+        const firstId = surveys[0]?.surveyId ?? surveys[0]?.id ?? null
+        if (firstId) {
+          this.currentSurveyId.value = firstId
+        }
+      } catch {
+        // ignore, surveyId may be set via another path
+      }
+    },
+
+    async getSurveys(cycleId: string): Promise<{ id?: string; surveyId?: string }[]> {
+      const result = await this.api.request<
+        { id?: string; surveyId?: string }[] | { surveys?: { id?: string; surveyId?: string }[] }
+      >(
+        `${this.getAdminApiBase()}/admin/get-surveys`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ cycleId }),
+      )
+      const body = result.body
+      if (Array.isArray(body)) return body
+      if (body && typeof body === 'object' && 'surveys' in body) {
+        return Array.isArray(body.surveys) ? body.surveys : []
+      }
+      return []
+    },
+
+    async setQuestionType(questionId: string, type: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-question-type`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId, type } satisfies SetQuestionTypePayload),
+      )
+    },
+
+    async setSubQuestionTitle(subQuestionId: string, title: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-sub-question-title`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ subQuestionId, title } satisfies SetSubQuestionTitlePayload),
+      )
+    },
+
+    async setQuestionTitle(questionId: string, title: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-question-title`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId, title } satisfies SetQuestionTitlePayload),
+      )
+    },
+
+    async setSubQuestionAttributes(
+      subQuestionId: string,
+      localizedAttributes: Record<string, unknown>,
+    ): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-sub-question-attributes`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ subQuestionId, localizedAttributes } satisfies SetSubQuestionAttributesPayload),
+      )
+    },
+
+    async setQuestionMetric(questionId: string, metricId: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-question-metric`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId, metricId } satisfies SetQuestionMetricPayload),
+      )
+    },
+
+    async setQuestionAttributes(
+      questionId: string,
+      attributes: Record<string, unknown>,
+      localizedAttributes: Record<string, unknown>,
+    ): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-question-attributes`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId, attributes, localizedAttributes } satisfies SetQuestionAttributesPayload),
+      )
+    },
+
+    async setChoiceTitle(choiceId: string, title: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-choice-title`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ choiceId, title } satisfies SetChoiceTitlePayload),
+      )
+    },
+
+    async setChoiceMark(choiceId: string, mark: number): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-choice-mark`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ choiceId, mark } satisfies SetChoiceMarkPayload),
+      )
+    },
+
+    async setChoiceAttributes(
+      choiceId: string,
+      localizedAttributes: Record<string, unknown>,
+    ): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-choice-attributes`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ choiceId, localizedAttributes } satisfies SetChoiceAttributesPayload),
+      )
+    },
+
+    async linkThemeTreeToQuestion(questionId: string, themeTreeId: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-job/link-theme-tree-to-question`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId, themeTreeId } satisfies LinkThemeTreeToQuestionPayload),
+      )
+    },
+
+    async createGeneralLink(surveyId: string): Promise<RemoteGeneralLink> {
+      const result = await this.api.request<RemoteGeneralLink>(
+        `${this.getAdminApiBase()}/admin/general-link/create-general-link`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({
+          demo: false,
+          title: 'Общая ссылка',
+          locale: 'ru',
+          generalLinkId: '',
+          surveyId,
+          additionalFilters: [],
+          status: 'active',
+          disableFilterWithoutVirtualRespondents: false,
+          filtersConfig: {
+            type: 'without_choice_without_limit',
+            permissions: {},
+            filterId: null,
+            maxCompletionPercent: null,
+          },
+        } satisfies CreateGeneralLinkPayload),
+      )
+      return result.body
+    },
+
+    async getGeneralLinks(surveyId: string, cycleId: string): Promise<RemoteGeneralLink[]> {
+      const result = await this.api.request<RemoteGeneralLink[] | { generalLinks?: RemoteGeneralLink[] }>(
+        `${this.getAdminApiBase()}/admin/general-link/get-general-links`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ surveyId, offset: 0, limit: 20, cycleId }),
+      )
+      const body = result.body
+      if (Array.isArray(body)) return body
+      if (body && typeof body === 'object' && 'generalLinks' in body) {
+        return Array.isArray(body.generalLinks) ? body.generalLinks : []
+      }
+      return []
+    },
+
+    async copyQuestions(fromCycleId: string, toCycleId: string, questionIds: string[]): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/copy-questions`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ fromCycleId, toCycleId, questionIds }),
+      )
+    },
+
+    async getQuestions(cycleId: string): Promise<RemoteQuestion[]> {
+      const result = await this.api.request<RemoteQuestion[] | { questions?: RemoteQuestion[] }>(
+        `${this.getAdminApiBase()}/admin/happy-survey/get-questions`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ cycleId }),
+      )
+      const body = result.body
+      if (Array.isArray(body)) return body
+      if (body && typeof body === 'object' && 'questions' in body) {
+        return Array.isArray(body.questions) ? body.questions : []
+      }
+      return []
+    },
+
+    async getCycleThemeTrees(cycleId: string): Promise<unknown[]> {
+      const result = await this.api.request<unknown[]>(
+        `${this.getAdminApiBase()}/admin/happy-job/get-cycle-theme-trees`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ cycleId }),
+      )
+      return Array.isArray(result.body) ? result.body : []
+    },
+
+    async getFilters(cycleId: string): Promise<unknown> {
+      const result = await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/get-filters`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ cycleId }),
+      )
+      return result.body
+    },
+
+    async getMetrics(cycleId: string): Promise<unknown[]> {
+      const result = await this.api.request<unknown[]>(
+        `${this.getAdminApiBase()}/admin/happy-job/get-metrics`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ cycleId }),
+      )
+      return Array.isArray(result.body) ? result.body : []
     },
 
     async acceptStudyToken(token: TokenValue, studyId: string | null): Promise<void> {
@@ -330,6 +685,8 @@ export const useAuthStore = defineStore('AuthStore', {
       this.currentCompanyName.deleteValue()
       this.currentClientId.deleteValue()
       this.currentStudyId.deleteValue()
+      this.currentCycleId.deleteValue()
+      this.currentSurveyId.deleteValue()
       this.currentStudyToken.deleteValue()
     },
     async doLogin(loginPayload: ILoginPayload): Promise<boolean> {

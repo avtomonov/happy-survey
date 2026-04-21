@@ -20,6 +20,8 @@ export interface QuestionTypeConfig {
 
 export const COMMON_QUESTION_SET_ID = 'common'
 
+export const TEMPLATE_CYCLE_ID = import.meta.env.VITE_APP_TEMPLATE_CYCLE_ID as string | undefined ?? '1ef038f6-5631-61b6-a87c-0a00ac070060'
+
 export const QUESTION_TYPE_CONFIGS: QuestionTypeConfig[] = [
   { id: 'nps', label: 'NPS', questionSetId: COMMON_QUESTION_SET_ID },
   { id: 'csat', label: 'CSAT', questionSetId: COMMON_QUESTION_SET_ID },

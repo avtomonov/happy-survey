@@ -12,3 +12,35 @@ body,
 		Arial,
 		sans-serif;
 }
+
+.q-btn.bg-primary {
+	background: #61c13a !important;
+}
+
+.q-btn.text-primary {
+	color: #61c13a !important;
+}
+
+.q-field--focused .q-field__label,
+.q-field--float .q-field__label {
+	color: #61c13a !important;
+}
+
+.q-field--focused .q-field__native,
+.q-field--focused .q-field__prefix,
+.q-field--focused .q-field__suffix,
+.q-field--focused .q-field__input {
+	caret-color: #61c13a;
+	color: inherit;
+}
+
+.q-field--standard.q-field--focused .q-field__control::after,
+.q-field--filled.q-field--focused .q-field__control::after,
+.q-field--outlined.q-field--focused .q-field__control::after {
+	border-color: #61c13a !important;
+}
+
+.q-field--focused .q-field__append,
+.q-field--focused .q-field__prepend {
+	color: #61c13a !important;
+}
