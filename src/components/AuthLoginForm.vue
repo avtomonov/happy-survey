@@ -45,7 +45,7 @@ const onLogin = async (): Promise<void> => {
   const success = await authStore.doLogin(payload)
 
   if (success) {
-    await router.push('/goal')
+    await router.push({ name: 'home' })
   } else {
     loginMessage.value = 'Не удалось авторизоваться. Проверьте данные и API'
   }
@@ -79,7 +79,7 @@ const onRegister = async (): Promise<void> => {
   const success = await authStore.doLogin(payload)
 
   if (success) {
-    await router.push('/goal')
+    await router.push({ name: 'home' })
   } else {
     registerMessage.value = 'Не удалось зарегистрироваться. Проверьте данные и API'
   }
