@@ -310,7 +310,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
 
   <AppLayout>
     <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
-      <div class="text-h5 text-center">Для какой цели вы хотите использовать конструктор?</div>
+      <div v-if="!isLoading" class="text-h5 text-center">Для какой цели вы хотите использовать конструктор?</div>
 
       <div v-if="isLoading" class="column items-center q-gutter-md q-my-md">
         <q-spinner size="48px" color="primary" />
@@ -319,7 +319,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
         </div>
       </div>
 
-      <div v-show="showCards" class="survey-sections full-width">
+      <div v-if="showCards && !isLoading" class="survey-sections full-width">
         <div
           v-for="category in surveyCardCategories"
           :key="category.id"
