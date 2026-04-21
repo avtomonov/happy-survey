@@ -48,7 +48,7 @@ const selectType = (typeId: string): void => {
 
 const proceed = (): void => {
   if (!selectedType.value) return
-  router.push({ name: 'home' })
+  router.push({ name: 'question-set', query: { type: selectedType.value } })
 }
 </script>
 

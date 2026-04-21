@@ -1,5 +1,6 @@
 export interface ApiResponse<TBody> {
   body: TBody
+  headers: Headers
 }
 
 export class ApiRequestError extends Error {
@@ -40,7 +41,10 @@ export default class ApiService {
       throw new ApiRequestError(response.statusText || 'Request failed', response.status)
     }
 
-    return { body: parsedBody as TBody }
+    return {
+      body: parsedBody as TBody,
+      headers: response.headers,
+    }
   }
 
   async loadSpec(): Promise<void> {

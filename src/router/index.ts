@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import GoalSelectPage from '../pages/GoalSelectPage.vue'
 import QuestionTypesPage from '../pages/QuestionTypesPage.vue'
+import QuestionSetPage from '../pages/QuestionSetPage.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -28,6 +29,12 @@ const routes: RouteRecordRaw[] = [
     path: '/question-types',
     name: 'question-types',
     component: QuestionTypesPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/question-set',
+    name: 'question-set',
+    component: QuestionSetPage,
     meta: { requiresAuth: true },
   },
 ]
