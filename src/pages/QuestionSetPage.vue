@@ -193,7 +193,6 @@ const surveyContentStyle = computed(() => ({
   '--theme-border': `color-mix(in srgb, ${activeTheme.value.text} 25%, transparent)`,
   transition: 'background-color 0.3s, color 0.3s',
   borderRadius: '8px',
-  padding: '8px',
 }))
 
 // ───────── Settings ─────────
@@ -271,7 +270,7 @@ const handleLogoUpload = (file: File | null): void => {
             <div class="q-pa-md">
 
               <!-- Брендинг опроса -->
-              <div class="settings-section">
+              <!-- <div class="settings-section">
                 <div class="settings-section-title">Брендинг опроса</div>
                 <p class="settings-section-desc">
                   Создайте тему на основе вашего логотипа или любого изображения.
@@ -290,7 +289,7 @@ const handleLogoUpload = (file: File | null): void => {
                   size="sm"
                   class="full-width"
                 />
-              </div>
+              </div> -->
 
               <q-separator class="q-my-md" />
 
@@ -490,13 +489,13 @@ const handleLogoUpload = (file: File | null): void => {
         {{ emptyStateMessage }}
       </div>
 
-      <div v-else class="column q-gutter-md survey-cards-wrapper" :style="surveyContentStyle">
-        <q-card v-for="question in localQuestions" :key="question.questionId" bordered flat>
+      <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
+        <q-card v-for="(question, index) in localQuestions" :key="question.questionId" bordered flat>
           <q-card-section class="q-pb-sm">
             <div class="row items-start justify-between no-wrap">
               <div class="col">
                 <div class="row items-center q-gutter-xs q-mb-xs">
-                  <span class="text-caption text-grey-7">#{{ question.queueCycle + 1 }}</span>
+                  <span class="text-caption text-grey-7">#{{ index + 1 }}</span>
                   <template v-if="isEditing(question.questionId)">
                     <q-input
                       v-model="editingDrafts[question.questionId].type"
@@ -637,6 +636,7 @@ const handleLogoUpload = (file: File | null): void => {
 .main-content {
   margin-left: 280px;
   min-height: 100vh;
+  background-color: #f4f5f5;
 }
 
 /* ── Бургер-кнопка (только мобайл) ── */

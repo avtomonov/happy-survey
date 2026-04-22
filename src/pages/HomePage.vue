@@ -321,6 +321,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
       <div
         class="text-h2 text-center fade-in-css"
         style="margin-bottom: 50px; margin-top: 100px;"
+        v-if="!isLoading"
       >
         Для какой цели вы хотите использовать конструктор?
         <!-- <span
