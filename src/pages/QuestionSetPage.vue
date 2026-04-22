@@ -829,8 +829,8 @@ const handleLogoUpload = (file: File | null): void => {
                 v-if="insertMenuBefore"
                 v-model="insertMenuBefore"
                 no-parent-event
-                anchor="bottom left"
-                self="top left"
+                anchor="bottom middle"
+                self="top middle"
                 auto-close
                 style="min-width: 220px; border-radius: 8px"
               >
@@ -1114,7 +1114,6 @@ const handleLogoUpload = (file: File | null): void => {
                         class="choice-row"
                       >
                         <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
-                        <span class="choice-mark">{{ choice.mark }}</span>
                       </div>
                       <template v-if="question.subQuestions && question.subQuestions.length">
                         <q-separator class="q-my-xs" />
@@ -1190,8 +1189,8 @@ const handleLogoUpload = (file: File | null): void => {
                   <q-menu
                     :model-value="insertMenuAfter === question.questionId"
                     no-parent-event
-                    anchor="bottom left"
-                    self="top left"
+                    anchor="bottom middle"
+                    self="top middle"
                     auto-close
                     style="min-width: 220px; border-radius: 8px"
                     @update:model-value="v => { if (!v) insertMenuAfter = null }"
@@ -1247,6 +1246,10 @@ const handleLogoUpload = (file: File | null): void => {
   margin-left: 280px;
   min-height: 100vh;
   background-color: #f4f5f5;
+  > div {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
 }
 
 /* ── Бургер-кнопка (только мобайл) ── */
@@ -1557,13 +1560,6 @@ const handleLogoUpload = (file: File | null): void => {
 .insert-between-row:hover,
 .insert-between-row:focus-within {
   opacity: 1;
-}
-
-.insert-between-row .q-list {
-  border-radius: 8px;
-  background-color: #fff;
-  position: absolute;
-  z-index: 1;
 }
 
 .insert-between-line {
