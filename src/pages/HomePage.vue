@@ -21,6 +21,15 @@ interface SurveyCardCategory {
   cards: SurveyCard[]
 }
 
+interface ExistingSurveyEntry {
+  id: string
+  title: string
+  studyId: string
+  cycleId: string
+  surveyId: string
+  studyToken: string
+}
+
 const surveyCardCategories: SurveyCardCategory[] = [
   {
     id: 'main',
@@ -140,14 +149,122 @@ const isLoaded = ref<boolean>(false)
 const showLoader = ref<boolean>(!hasShownLoader)
 const showCards = ref<boolean>(hasShownLoader)
 const showQuestion = ref<boolean>(hasShownLoader)
+const existingSurveys = ref<ExistingSurveyEntry[]>([])
+const isLoadingExistingSurveys = ref<boolean>(false)
+const existingSurveysError = ref<string>('')
 const emit = defineEmits<{ (event: 'loaded'): void }>()
 
 let finishTimerId: number | null = null
 let hideTimerId: number | null = null
 let cardsTimerId: number | null = null
 
+const extractSurveyTitle = (survey: { title?: string; localizedAttributes?: Record<string, unknown> }): string => {
+  const localizedAttributes = (survey.localizedAttributes ?? {}) as Record<string, unknown>
+
+  if (typeof localizedAttributes.title === 'string' && localizedAttributes.title.trim()) {
+    return localizedAttributes.title.trim()
+  }
+
+  const ruAttrs = localizedAttributes.ru
+  if (ruAttrs && typeof ruAttrs === 'object' && 'title' in (ruAttrs as Record<string, unknown>)) {
+    const ruTitle = (ruAttrs as Record<string, unknown>).title
+    if (typeof ruTitle === 'string' && ruTitle.trim()) {
+      return ruTitle.trim()
+    }
+  }
+
+  const firstLocaleAttrs = Object.values(localizedAttributes).find(
+    (value) => value && typeof value === 'object' && 'title' in (value as Record<string, unknown>),
+  ) as Record<string, unknown> | undefined
+
+  if (firstLocaleAttrs && typeof firstLocaleAttrs.title === 'string' && firstLocaleAttrs.title.trim()) {
+    return firstLocaleAttrs.title.trim()
+  }
+
+  return survey.title?.trim() || 'Опрос без названия'
+}
+
+const loadExistingSurveys = async (): Promise<void> => {
+  const clientId = authStore.clientId
+  if (!clientId) {
+    existingSurveys.value = []
+    return
+  }
+
+  isLoadingExistingSurveys.value = true
+  existingSurveysError.value = ''
+
+  const previousStudyId = authStore.currentStudyId.value
+  const previousCycleId = authStore.currentCycleId.value
+  const previousSurveyId = authStore.currentSurveyId.value
+  const previousStudyToken = authStore.currentStudyToken.value
+
+  try {
+    const studies = await authStore.getStudies()
+    const customStudies = studies.filter((study) => (
+      study.type === 'happy_survey'
+      && study.clientId === clientId
+      && typeof study.id === 'string'
+      && study.id.trim().length > 0
+      && typeof study.token === 'string'
+      && study.token.trim().length > 0
+    ))
+
+    const list: ExistingSurveyEntry[] = []
+
+    for (const study of customStudies) {
+      const studyId = study.id!.trim()
+      const studyToken = study.token!.trim()
+
+      await authStore.acceptStudyToken(studyToken, studyId)
+
+      const cycles = await authStore.getCycles(studyId)
+      const latestCycle = cycles.at(-1)
+      const cycleId = (latestCycle?.cycleId ?? latestCycle?.id ?? '').trim()
+
+      if (!cycleId) {
+        continue
+      }
+
+      const surveys = await authStore.getSurveys(cycleId)
+      const latestSurvey = surveys.at(-1)
+      const surveyId = (latestSurvey?.surveyId ?? latestSurvey?.id ?? '').trim()
+
+      if (!surveyId) {
+        continue
+      }
+
+      list.push({
+        id: `${studyId}:${cycleId}:${surveyId}`,
+        title: extractSurveyTitle(latestSurvey ?? {}),
+        studyId,
+        cycleId,
+        surveyId,
+        studyToken,
+      })
+    }
+
+    existingSurveys.value = list.reverse()
+  } catch (error: unknown) {
+    existingSurveys.value = []
+    existingSurveysError.value = error instanceof Error
+      ? error.message
+      : 'Не удалось загрузить список созданных опросов'
+  } finally {
+    if (previousStudyToken) {
+      await authStore.acceptStudyToken(previousStudyToken, previousStudyId ?? null)
+    }
+    authStore.currentStudyId.value = previousStudyId ?? null
+    authStore.currentCycleId.value = previousCycleId ?? null
+    authStore.currentSurveyId.value = previousSurveyId ?? null
+    isLoadingExistingSurveys.value = false
+  }
+}
+
 
 onMounted(() => {
+  void loadExistingSurveys()
+
   if (hasShownLoader) {
     emit('loaded')
     showQuestion.value = true
@@ -205,7 +322,7 @@ const waitForQuestions = async (cycleId: string): Promise<void> => {
   }
 }
 
-const openCustomSurvey = async (): Promise<void> => {
+const openCustomSurvey = async (cardTitle: string): Promise<void> => {
   if (isLoading.value) {
     return
   }
@@ -214,8 +331,8 @@ const openCustomSurvey = async (): Promise<void> => {
   isLoading.value = true
 
   try {
-    await authStore.launchCustomStudy()
-    await router.push({ name: 'question-set' })
+    await authStore.launchCustomStudy(cardTitle)
+    await router.push({ name: 'question-set', query: { surveyTitle: cardTitle } })
   } catch (error: unknown) {
     errorMessage.value =
       error instanceof Error
@@ -226,7 +343,7 @@ const openCustomSurvey = async (): Promise<void> => {
   }
 }
 
-const openTemplateSurvey = async (typeId: string): Promise<void> => {
+const openTemplateSurvey = async (typeId: string, cardTitle: string): Promise<void> => {
   if (isLoading.value) {
     return
   }
@@ -235,7 +352,7 @@ const openTemplateSurvey = async (typeId: string): Promise<void> => {
   isLoading.value = true
 
   try {
-    await authStore.launchCustomStudy()
+    await authStore.launchCustomStudy(cardTitle)
 
     const cycleId = authStore.cycleId
     if (!cycleId) {
@@ -311,7 +428,7 @@ const openTemplateSurvey = async (typeId: string): Promise<void> => {
 
     await waitForQuestions(cycleId)
 
-    await router.push({ name: 'question-set', query: { type: typeId } })
+    await router.push({ name: 'question-set', query: { type: typeId, surveyTitle: cardTitle } })
   } catch (error: unknown) {
     errorMessage.value = error instanceof Error ? error.message : 'Не удалось скопировать вопросы'
   } finally {
@@ -329,7 +446,7 @@ const openEngagementSurvey = async (): Promise<void> => {
 
 const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   if (card.kind === 'custom') {
-    await openCustomSurvey()
+    await openCustomSurvey(card.title)
     return
   }
 
@@ -338,7 +455,34 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
     return
   }
 
-  await openTemplateSurvey(card.id)
+  await openTemplateSurvey(card.id, card.title)
+}
+
+const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> => {
+  if (isLoading.value) {
+    return
+  }
+
+  errorMessage.value = ''
+  isLoading.value = true
+
+  try {
+    await authStore.acceptStudyToken(survey.studyToken, survey.studyId)
+    authStore.currentStudyId.value = survey.studyId
+    authStore.currentCycleId.value = survey.cycleId
+    authStore.currentSurveyId.value = survey.surveyId
+
+    await router.push({
+      name: 'question-set',
+      query: { surveyTitle: survey.title },
+    })
+  } catch (error: unknown) {
+    errorMessage.value = error instanceof Error
+      ? error.message
+      : 'Не удалось открыть существующий опрос'
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -432,6 +576,52 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
                 </div>
               </q-card-section>
             </q-card>
+          </div>
+        </div>
+
+        <div class="survey-section">
+          <div class="text-subtitle1 text-weight-bold q-mb-md category-heading">
+            Уже созданные опросы
+          </div>
+
+          <div v-if="isLoadingExistingSurveys" class="row items-center q-gutter-sm q-px-sm q-py-sm">
+            <q-spinner size="20px" color="primary" />
+            <span class="text-body2 text-grey-7">Загружаем список опросов...</span>
+          </div>
+
+          <div v-else-if="existingSurveysError" class="text-negative text-body2 q-px-sm q-py-sm">
+            {{ existingSurveysError }}
+          </div>
+
+          <q-list
+            v-else-if="existingSurveys.length > 0"
+            bordered
+            separator
+            class="existing-surveys-list"
+          >
+            <q-item
+              v-for="survey in existingSurveys"
+              :key="survey.id"
+              clickable
+              v-ripple
+              class="existing-survey-item"
+              @click="openExistingSurvey(survey)"
+            >
+              <q-item-section avatar>
+                <q-icon name="description" color="positive" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-weight-medium">{{ survey.title }}</q-item-label>
+                <q-item-label caption>Открыть для редактирования</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-icon name="chevron_right" color="grey-6" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <div v-else class="text-body2 text-grey-7 q-px-sm q-py-sm">
+            У вас пока нет созданных опросов.
           </div>
         </div>
       </div>
@@ -580,6 +770,17 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
 
 .survey-card-grid {
   align-items: stretch;
+}
+
+.existing-surveys-list {
+  max-width: 1120px;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.existing-survey-item {
+  min-height: 58px;
 }
 
 .goal-card {

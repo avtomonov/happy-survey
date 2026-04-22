@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -36,6 +36,20 @@ const emptyStateMessage = computed(() => {
 const localQuestions = ref<SurveyQuestion[]>([])
 const isLoadingQuestions = ref(false)
 const loadError = ref('')
+const surveyTitle = ref('Новый опрос')
+const surveyTitleDraft = ref('Новый опрос')
+const surveyLocalizedAttributes = ref<Record<string, unknown>>({})
+const isSavingSurveyTitle = ref(false)
+const surveyTitleError = ref('')
+const isEditingSurveyTitle = ref(false)
+const surveyTitleInputRef = ref<{ focus: () => void; select: () => void } | null>(null)
+let surveyRenameDebounceTimer: number | null = null
+const SURVEY_TITLE_RENAME_DEBOUNCE_MS = 5000
+
+const routeSurveyTitle = computed(() => {
+  const raw = route.query.surveyTitle
+  return typeof raw === 'string' ? raw.trim() : ''
+})
 
 const ensureQuestionIds = (questions: SurveyQuestion[]): SurveyQuestion[] => (
   questions.map((question, index) => ({
@@ -95,13 +109,140 @@ const loadFromBackend = async (cycleId: string): Promise<void> => {
   localQuestions.value = []
 }
 
+const loadSurveyMeta = async (cycleId: string): Promise<void> => {
+  try {
+    const surveys = await authStore.getSurveys(cycleId)
+    const activeSurveyId = authStore.surveyId
+    const activeSurvey = surveys.find((s) => (s.surveyId ?? s.id) === activeSurveyId) ?? surveys[0]
+
+    const localizedAttributes = (activeSurvey?.localizedAttributes ?? {}) as Record<string, unknown>
+    const localizedTitle = (() => {
+      if (typeof localizedAttributes.title === 'string') {
+        return localizedAttributes.title
+      }
+
+      const ruAttrs = localizedAttributes.ru
+      if (ruAttrs && typeof ruAttrs === 'object' && 'title' in (ruAttrs as Record<string, unknown>)) {
+        const ruTitle = (ruAttrs as Record<string, unknown>).title
+        if (typeof ruTitle === 'string') {
+          return ruTitle
+        }
+      }
+
+      const firstLocaleAttrs = Object.values(localizedAttributes).find(
+        (value) => value && typeof value === 'object' && 'title' in (value as Record<string, unknown>),
+      ) as Record<string, unknown> | undefined
+
+      if (firstLocaleAttrs && typeof firstLocaleAttrs.title === 'string') {
+        return firstLocaleAttrs.title
+      }
+
+      return ''
+    })()
+    const resolvedTitle =
+      (localizedTitle || activeSurvey?.title || '').trim()
+      || routeSurveyTitle.value
+      || surveyTypeLabel.value
+      || 'Новый опрос'
+
+    surveyLocalizedAttributes.value = { ...localizedAttributes }
+    surveyTitle.value = resolvedTitle
+    surveyTitleDraft.value = resolvedTitle
+
+    if (activeSurvey && !activeSurveyId) {
+      authStore.currentSurveyId.value = (activeSurvey.surveyId ?? activeSurvey.id) ?? null
+    }
+  } catch {
+    // Silent fallback: we keep default title if survey meta is unavailable.
+  }
+}
+
+const renameSurvey = async (): Promise<void> => {
+  const nextTitle = surveyTitleDraft.value.trim()
+
+  if (!nextTitle) {
+    surveyTitleError.value = 'Название опроса не может быть пустым'
+    return
+  }
+
+  const currentTitle = surveyTitle.value.trim()
+  if (nextTitle === currentTitle) {
+    surveyTitleError.value = ''
+    return
+  }
+
+  const surveyId = authStore.surveyId
+  if (!surveyId) {
+    surveyTitleError.value = 'Не найден surveyId для переименования'
+    return
+  }
+
+  isSavingSurveyTitle.value = true
+  surveyTitleError.value = ''
+
+  try {
+    const nextLocalizedAttributes = {
+      ...surveyLocalizedAttributes.value,
+      title: nextTitle,
+    }
+
+    await authStore.changeSurveyLocalizedAttributes(surveyId, nextLocalizedAttributes)
+
+    surveyLocalizedAttributes.value = nextLocalizedAttributes
+    surveyTitle.value = nextTitle
+    surveyTitleDraft.value = nextTitle
+  } catch (e) {
+    console.error(e)
+    surveyTitleError.value = 'Не удалось переименовать опрос'
+  } finally {
+    isSavingSurveyTitle.value = false
+  }
+}
+
+const clearSurveyRenameDebounce = (): void => {
+  if (surveyRenameDebounceTimer !== null) {
+    window.clearTimeout(surveyRenameDebounceTimer)
+    surveyRenameDebounceTimer = null
+  }
+}
+
+const scheduleSurveyRename = (): void => {
+  surveyTitleError.value = ''
+  clearSurveyRenameDebounce()
+  surveyRenameDebounceTimer = window.setTimeout(() => {
+    void renameSurvey()
+  }, SURVEY_TITLE_RENAME_DEBOUNCE_MS)
+}
+
+const startSurveyTitleEdit = async (): Promise<void> => {
+  isEditingSurveyTitle.value = true
+  surveyTitleDraft.value = surveyTitle.value
+  surveyTitleError.value = ''
+  await nextTick()
+  surveyTitleInputRef.value?.focus()
+  surveyTitleInputRef.value?.select()
+}
+
+const stopSurveyTitleEdit = async (): Promise<void> => {
+  clearSurveyRenameDebounce()
+  await renameSurvey()
+  isEditingSurveyTitle.value = false
+}
+
 onMounted(async () => {
   const cycleId = authStore.cycleId
   if (cycleId) {
-    await loadFromBackend(cycleId)
+    await Promise.all([
+      loadFromBackend(cycleId),
+      loadSurveyMeta(cycleId),
+    ])
   } else {
     localQuestions.value = []
   }
+})
+
+onBeforeUnmount(() => {
+  clearSurveyRenameDebounce()
 })
 
 interface QuestionDraftChoice {
@@ -539,6 +680,7 @@ const surveyContentStyle = computed(() => ({
   '--theme-text': activeTheme.value.text,
   '--theme-accent': activeTheme.value.accent,
   '--theme-border': `color-mix(in srgb, ${activeTheme.value.text} 25%, transparent)`,
+  '--survey-font-family': selectedFontFamily.value,
   transition: 'background-color 0.3s, color 0.3s',
   borderRadius: '8px',
 }))
@@ -552,6 +694,23 @@ const customBgColor = ref('#ffffff')
 
 const fontOptions = ['Стандартный', 'Roboto', 'Open Sans', 'Montserrat', 'Playfair Display']
 const presetColors = ['#ffffff', '#f5f5f5', '#e3f2fd', '#fce4ec', '#f3e5f5', '#e8f5e9']
+
+const fontFamilyByOption: Record<string, string> = {
+  Стандартный: 'Helvetica, Arial, sans-serif',
+  Roboto: 'Roboto, Helvetica, Arial, sans-serif',
+  'Open Sans': '"Open Sans", Helvetica, Arial, sans-serif',
+  Montserrat: 'Montserrat, Helvetica, Arial, sans-serif',
+  'Playfair Display': '"Playfair Display", Georgia, serif',
+}
+
+const selectedFontFamily = computed(() => {
+  return fontFamilyByOption[selectedFont.value] ?? fontFamilyByOption['Стандартный']
+})
+
+const mainContentInnerStyle = computed(() => ({
+  maxWidth: selectedLayout.value === 'full' ? '100%' : '1200px',
+  margin: '0 auto',
+}))
 
 const handleLogoUpload = (file: File | null): void => {
   if (!file) return
@@ -749,9 +908,9 @@ const openChoiceImagePreview = (
 
               <!-- Шрифты -->
               <div class="settings-section">
-                <div class="row items-center q-gutter-sm q-mb-sm">
-                  <span class="settings-section-title q-mb-none">Шрифты</span>
-                  <span class="font-preview-aa">Aa</span>
+                <div class="row items-center q-mb-sm">
+                  <span class="settings-section-title q-mb-none q-mr-sm">Шрифты</span>
+                  <span class="font-preview-aa" :style="{ fontFamily: selectedFontFamily }">Aa</span>
                 </div>
                 <q-select
                   v-model="selectedFont"
@@ -869,7 +1028,7 @@ const openChoiceImagePreview = (
 
       <!-- ───── Основной контент ───── -->
       <div class="main-content">
-        <div class="q-pa-md">
+        <div class="q-pa-md" :style="mainContentInnerStyle">
           <div class="row justify-end q-gutter-sm q-mb-lg">
             <q-btn
               label="Назад к видам опросов"
@@ -887,15 +1046,13 @@ const openChoiceImagePreview = (
             />
           </div>
 
-          <div class="column q-gutter-md q-mb-lg">
-            <div class="text-h5">Набор вопросов</div>
-            <div class="text-subtitle1 text-grey-8">
-              Тип: {{ surveyTypeLabel }}
-            </div>
-            <div class="text-body2 text-grey-7">
-              Всего вопросов: {{ localQuestions.length }}
-            </div>
-          </div>
+      <div class="text-subtitle1 text-grey-8">
+        Тип: {{ surveyTypeLabel }}
+      </div>
+      <div class="text-body2 text-grey-7 q-mb-md">
+        Всего вопросов: {{ localQuestions.length }}
+      </div>
+
 
           <!-- Добавить вопрос -->
           <div class="row items-center q-gutter-sm q-mb-md">
@@ -936,6 +1093,7 @@ const openChoiceImagePreview = (
             </q-btn-dropdown>
             <div v-if="createError" class="text-negative text-caption">{{ createError }}</div>
           </div>
+      
 
       <div v-if="isLoadingQuestions" class="row justify-center q-pa-xl">
         <q-spinner size="40px" color="primary" />
@@ -950,6 +1108,45 @@ const openChoiceImagePreview = (
       </div>
 
       <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
+
+                <div v-if="surveyTitleError" class="text-negative text-caption q-my-md">
+        {{ surveyTitleError }}
+      </div>
+          <div class="column q-gutter-md q-my-md q-px-md">
+            <div class="survey-title-editor">
+              <div v-if="!isEditingSurveyTitle" class="survey-title-display-row">
+                <div class="text-h5 survey-title-text" :title="surveyTitle">{{ surveyTitle }}</div>
+                <q-btn
+                  class="survey-title-edit-btn"
+                  flat
+                  dense
+                  round
+                  icon="edit"
+                  color="grey-6"
+                  :disable="isSavingSurveyTitle"
+                  @click="startSurveyTitleEdit"
+                />
+              </div>
+              <q-input
+                v-else
+                ref="surveyTitleInputRef"
+                v-model="surveyTitleDraft"
+                dense
+                outlined
+                class="survey-title-input"
+                :disable="isSavingSurveyTitle"
+                @update:model-value="scheduleSurveyRename"
+                @keyup.enter="stopSurveyTitleEdit"
+                @blur="stopSurveyTitleEdit"
+              >
+                <template #append>
+                  <q-spinner v-if="isSavingSurveyTitle" size="16px" color="primary" />
+                </template>
+              </q-input>
+            </div>
+
+          </div>
+
           <!-- Insert before first question -->
           <div class="insert-between-row" @click="insertMenuBefore = !insertMenuBefore">
             <div class="insert-between-line" />
@@ -1486,10 +1683,6 @@ const openChoiceImagePreview = (
   margin-left: 280px;
   min-height: 100vh;
   background-color: #f4f5f5;
-  > div {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
 }
 
 /* ── Бургер-кнопка (только мобайл) ── */
@@ -1563,7 +1756,6 @@ const openChoiceImagePreview = (
   font-size: 13px;
   font-weight: 600;
   color: #424242;
-  margin-bottom: 8px;
 }
 
 .settings-section-desc {
@@ -1578,6 +1770,42 @@ const openChoiceImagePreview = (
   font-weight: 700;
   color: #424242;
   line-height: 1;
+}
+
+.survey-title-editor {
+  width: min(100%, 680px);
+  min-height: 40px;
+}
+
+.survey-title-display-row {
+  width: 100%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+:deep(.survey-title-edit-btn) {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.survey-title-display-row:hover :deep(.survey-title-edit-btn),
+.survey-title-display-row:focus-within :deep(.survey-title-edit-btn) {
+  opacity: 1 !important;
+  pointer-events: auto;
+}
+
+.survey-title-text {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.survey-title-input {
+  width: 100%;
 }
 
 .logo-upload-area {
@@ -1696,6 +1924,19 @@ const openChoiceImagePreview = (
 .survey-cards-wrapper {
   padding: 0 12px;
 }
+
+.survey-cards-wrapper,
+.survey-cards-wrapper :deep(.q-card),
+.survey-cards-wrapper :deep(.q-item),
+.survey-cards-wrapper :deep(.q-btn),
+.survey-cards-wrapper :deep(.q-field),
+.survey-cards-wrapper :deep(.q-input),
+.survey-cards-wrapper :deep(input),
+.survey-cards-wrapper :deep(textarea),
+.survey-cards-wrapper :deep(select) {
+  font-family: var(--survey-font-family, Helvetica, Arial, sans-serif) !important;
+}
+
 .survey-cards-wrapper :deep(.q-card) {
   background: color-mix(in srgb, white 14%, var(--theme-bg, #fff)) !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);

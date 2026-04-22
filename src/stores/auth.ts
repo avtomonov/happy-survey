@@ -39,8 +39,10 @@ interface PlanCyclePayload {
 interface PlanCycleResponse {
   id?: string
   cycleId?: string
+  title?: string
   cycle?: {
     id?: string
+    title?: string
   }
 }
 
@@ -217,6 +219,11 @@ interface SetChoiceAttributesPayload {
   localizedAttributes: Record<string, unknown>
 }
 
+interface ChangeSurveyLocalizedAttributesPayload {
+  surveyId: string
+  attributes: Record<string, unknown>
+}
+
 interface LinkThemeTreeToQuestionPayload {
   questionId: string
   themeTreeId: string
@@ -292,6 +299,23 @@ interface AuthStoreState {
   currentStudyToken: CookieRepository
   api: ApiService
   LAST_STUDY_COOKIE_NAME: string
+}
+
+export interface RemoteSurvey {
+  id?: string
+  surveyId?: string
+  title?: string
+  localizedAttributes?: Record<string, any>
+}
+
+export interface RemoteCycle {
+  id?: string
+  cycleId?: string
+  title?: string
+  cycle?: {
+    id?: string
+    title?: string
+  }
 }
 
 export const useAuthStore = defineStore('AuthStore', {
@@ -405,8 +429,9 @@ export const useAuthStore = defineStore('AuthStore', {
       return Array.isArray(studiesResult.body) ? studiesResult.body : []
     },
 
-    async launchCustomStudy(): Promise<void> {
+    async launchCustomStudy(initialSurveyTitle?: string): Promise<void> {
       const clientId = this.clientId
+      const resolvedTitle = initialSurveyTitle?.trim() || 'Свой опрос с нуля'
 
       if (!clientId) {
         throw new Error('Не найден clientId для запуска исследования')
@@ -417,7 +442,7 @@ export const useAuthStore = defineStore('AuthStore', {
         'POST',
         this.getAuthHeaders(),
         JSON.stringify({
-          title: 'Название 1',
+          title: resolvedTitle,
           clientId,
           type: 'happy_survey',
         } satisfies LaunchStudyPayload),
@@ -427,7 +452,7 @@ export const useAuthStore = defineStore('AuthStore', {
       const customStudies = studies.filter((study) =>
         study.type === 'happy_survey' &&
         study.clientId === clientId &&
-        study.title === 'Название 1',
+        study.title === resolvedTitle,
       )
       const createdStudy = customStudies.at(-1)
       const studyId = createdStudy?.id ?? null
@@ -447,7 +472,7 @@ export const useAuthStore = defineStore('AuthStore', {
       }
 
       const cycleId = await this.planCycle(studyId)
-      await this.planSurvey(cycleId)
+      await this.planSurvey(cycleId, resolvedTitle)
     },
 
     async planCycle(studyId: string): Promise<string> {
@@ -472,14 +497,14 @@ export const useAuthStore = defineStore('AuthStore', {
       return cycleId
     },
 
-    async planSurvey(cycleId: string): Promise<void> {
+    async planSurvey(cycleId: string, surveyTitle = 'Опрос 1'): Promise<void> {
       const result = await this.api.request<{ id?: string; surveyId?: string; survey?: { id?: string } }>(
         `${this.getAdminApiBase()}/admin/plan-survey`,
         'POST',
         this.getStudyAuthHeaders(),
         JSON.stringify({
           cycleId,
-          title: 'Опрос 1',
+          title: surveyTitle,
           attributes: {},
           localizedAttributes: DEFAULT_SURVEY_LOCALIZED_ATTRIBUTES,
         } satisfies PlanSurveyPayload),
@@ -506,9 +531,9 @@ export const useAuthStore = defineStore('AuthStore', {
       }
     },
 
-    async getSurveys(cycleId: string): Promise<{ id?: string; surveyId?: string }[]> {
+    async getSurveys(cycleId: string): Promise<RemoteSurvey[]> {
       const result = await this.api.request<
-        { id?: string; surveyId?: string }[] | { surveys?: { id?: string; surveyId?: string }[] }
+        RemoteSurvey[] | { surveys?: RemoteSurvey[] }
       >(
         `${this.getAdminApiBase()}/admin/get-surveys`,
         'POST',
@@ -521,6 +546,35 @@ export const useAuthStore = defineStore('AuthStore', {
         return Array.isArray(body.surveys) ? body.surveys : []
       }
       return []
+    },
+
+    async getCycles(studyId: string): Promise<RemoteCycle[]> {
+      const result = await this.api.request<
+        RemoteCycle[] | { cycles?: RemoteCycle[] }
+      >(
+        `${this.getAdminApiBase()}/admin/get-cycles`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ studyId }),
+      )
+      const body = result.body
+      if (Array.isArray(body)) return body
+      if (body && typeof body === 'object' && 'cycles' in body) {
+        return Array.isArray(body.cycles) ? body.cycles : []
+      }
+      return []
+    },
+
+    async changeSurveyLocalizedAttributes(
+      surveyId: string,
+      attributes: Record<string, unknown>,
+    ): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/change-survey-localized-attributes`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ surveyId, attributes } satisfies ChangeSurveyLocalizedAttributesPayload),
+      )
     },
 
     async createChoiceQuestion(cycleId: string, type: string): Promise<string> {
