@@ -179,6 +179,15 @@ const cancelEdit = (questionId: string): void => {
   delete errorMap.value[questionId]
 }
 
+const toggleEdit = (question: SurveyQuestion): void => {
+  if (isEditing(question.questionId)) {
+    cancelEdit(question.questionId)
+    return
+  }
+
+  startEdit(question)
+}
+
 // Re-initialize attributes when type changes in the editor
 const onDraftTypeChange = (questionId: string, newType: string): void => {
   const draft = editingDrafts.value[questionId]
@@ -1016,8 +1025,26 @@ const openChoiceImagePreview = (
                 <q-card-section class="q-pb-sm">
                   <div class="row items-start justify-between no-wrap">
                     <div class="col min-width-0">
-                      <div class="row items-center q-gutter-xs q-mb-xs">
-                        <q-icon name="drag_indicator" class="drag-handle drag-handle-icon" />
+                      <div
+                        :class="[
+                          'q-mb-xs',
+                          isEditing(question.questionId)
+                            ? 'question-edit-handle-block'
+                            : 'row items-center q-gutter-xs',
+                        ]"
+                      >
+                        <q-icon
+                          name="drag_indicator"
+                          :class="[
+                            'drag-handle',
+                            'drag-handle-icon',
+                            { 'drag-handle-icon--editing': isEditing(question.questionId) },
+                          ]"
+                        />
+                        <span
+                          v-if="isEditing(question.questionId)"
+                          class="question-number-badge"
+                        >{{ index + 1 }}</span>
                       </div>
                       <template v-if="isEditing(question.questionId)">
                         <!-- Тип вопроса -->
@@ -1111,7 +1138,7 @@ const openChoiceImagePreview = (
                         icon="edit"
                         color="grey-6"
                         class="edit-btn-on-hover"
-                        @click="startEdit(question)"
+                        @click="toggleEdit(question)"
                       />
                     </div>
                   </div>
@@ -1667,7 +1694,7 @@ const openChoiceImagePreview = (
 
 /* ── Themed cards ── */
 .survey-cards-wrapper {
-  padding: 12px;
+  padding: 0 12px;
 }
 .survey-cards-wrapper :deep(.q-card) {
   background: color-mix(in srgb, white 14%, var(--theme-bg, #fff)) !important;
@@ -1896,7 +1923,7 @@ const openChoiceImagePreview = (
 
 .survey-cards-wrapper :deep(.custom-question-card:hover) {
   box-shadow: 0 3px 12px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06);
-  background-color: color-mix(in srgb, var(--theme-text, #212121) 12%, var(--theme-bg, #fff)) !important;
+  background-color: color-mix(in srgb, var(--theme-text, #212121) 3%, var(--theme-bg, #fff)) !important;
 }
 
 /* Вставка вопроса между карточками */
@@ -1958,6 +1985,17 @@ const openChoiceImagePreview = (
 
 .survey-cards-wrapper :deep(.custom-question-card:hover) .drag-handle-icon {
   opacity: 0.5;
+}
+
+.question-edit-handle-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.survey-cards-wrapper :deep(.custom-question-card.question-card--editing) .drag-handle-icon--editing {
+  opacity: 0.75 !important;
 }
 
 @media (max-width: 768px) {
