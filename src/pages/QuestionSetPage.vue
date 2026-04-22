@@ -313,8 +313,12 @@ const saveQuestion = async (questionId: string): Promise<void> => {
 // ───────── Create / Delete question ─────────
 const isCreatingQuestion = ref(false)
 const createError = ref('')
+const newQuestionId = ref<string | null>(null)
 
-const createNewQuestion = async (type: string): Promise<void> => {
+const insertMenuBefore = ref(false)
+const insertMenuAfter = ref<string | null>(null)
+
+const createNewQuestion = async (type: string, insertIndex?: number): Promise<void> => {
   const cycleId = authStore.cycleId
   if (!cycleId) {
     createError.value = 'Нет активного цикла для создания вопроса'
@@ -324,21 +328,26 @@ const createNewQuestion = async (type: string): Promise<void> => {
   createError.value = ''
   try {
     const newId = await authStore.createChoiceQuestion(cycleId, type)
+    const targetIndex = insertIndex ?? localQuestions.value.length
     const newQuestion: SurveyQuestion = {
       questionId: newId,
       type,
       title: '',
-      queueCycle: localQuestions.value.length,
+      queueCycle: targetIndex,
       choices: [],
       subQuestions: [],
     }
-    localQuestions.value.push(newQuestion)
+    localQuestions.value.splice(targetIndex, 0, newQuestion)
+    await reorderQuestions(localQuestions.value)
     startEdit(newQuestion)
-    // Scroll to new question after next tick
+    newQuestionId.value = newId
     setTimeout(() => {
       const el = document.querySelector(`[data-question-id="${newId}"]`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 100)
+    setTimeout(() => {
+      newQuestionId.value = null
+    }, 1800)
   } catch (e) {
     createError.value = e instanceof Error ? e.message : 'Ошибка создания вопроса'
   } finally {
@@ -802,6 +811,48 @@ const handleLogoUpload = (file: File | null): void => {
       </div>
 
       <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
+          <!-- Insert before first question -->
+          <div class="insert-between-row">
+            <div class="insert-between-line" />
+            <q-btn
+              round
+              unelevated
+              size="sm"
+              color="positive"
+              class="insert-between-btn"
+              :loading="isCreatingQuestion"
+              :disable="isCreatingQuestion"
+              @click.stop="insertMenuBefore = true"
+            >
+              <i class="fa-solid fa-plus" />
+              <q-menu
+                v-model="insertMenuBefore"
+                no-parent-event
+                anchor="bottom left"
+                self="top left"
+                auto-close
+                style="min-width: 220px; border-radius: 8px"
+              >
+                <q-list separator>
+                  <q-item-label header class="text-caption text-weight-bold q-pb-xs">Тип вопроса</q-item-label>
+                  <q-item
+                    v-for="qType in SURVEY_QUESTION_TYPES"
+                    :key="qType.type"
+                    v-ripple
+                    clickable
+                    @click="createNewQuestion(qType.type, 0)"
+                  >
+                    <q-item-section>
+                      <q-item-label>{{ qType.typeName }}</q-item-label>
+                      <q-item-label caption>{{ qType.type }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
+            </q-btn>
+            <div class="insert-between-line" />
+          </div>
+
           <draggable
             v-model="localQuestions"
             item-key="questionId"
@@ -812,11 +863,12 @@ const handleLogoUpload = (file: File | null): void => {
             @end="handleDragEnd(localQuestions)"
           >
             <template #item="{ element: question, index }">
+              <div class="question-item-wrapper">
               <q-card
                 :key="question.questionId"
                 :data-question-id="question.questionId"
                 flat
-                class="question-card custom-question-card"
+                :class="['question-card custom-question-card', { 'question-card--new': newQuestionId === question.questionId }]"
               >
                 <q-card-section class="q-pb-sm">
                   <div class="row items-start justify-between no-wrap">
@@ -1122,6 +1174,49 @@ const handleLogoUpload = (file: File | null): void => {
                   </q-card-section>
                 </template>
               </q-card>
+              <!-- Insert after this question -->
+              <div class="insert-between-row">
+                <div class="insert-between-line" />
+                <q-btn
+                  round
+                  unelevated
+                  size="sm"
+                  color="positive"
+                  class="insert-between-btn"
+                  :loading="isCreatingQuestion"
+                  :disable="isCreatingQuestion"
+                  @click.stop="insertMenuAfter = question.questionId"
+                >
+                  <i class="fa-solid fa-plus" />
+                  <q-menu
+                    :model-value="insertMenuAfter === question.questionId"
+                    no-parent-event
+                    anchor="bottom left"
+                    self="top left"
+                    auto-close
+                    style="min-width: 220px; border-radius: 8px"
+                    @update:model-value="v => { if (!v) insertMenuAfter = null }"
+                  >
+                    <q-list separator>
+                      <q-item-label header class="text-caption text-weight-bold q-pb-xs">Тип вопроса</q-item-label>
+                      <q-item
+                        v-for="qType in SURVEY_QUESTION_TYPES"
+                        :key="qType.type"
+                        v-ripple
+                        clickable
+                        @click="createNewQuestion(qType.type, index + 1)"
+                      >
+                        <q-item-section>
+                          <q-item-label>{{ qType.typeName }}</q-item-label>
+                          <q-item-label caption>{{ qType.type }}</q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
+                <div class="insert-between-line" />
+              </div>
+              </div>
             </template>
           </draggable>
       </div>
@@ -1444,6 +1539,41 @@ const handleLogoUpload = (file: File | null): void => {
   background-color: color-mix(in srgb, var(--theme-accent, #1976d2) 15%, transparent);
 }
 
+/* Вставка вопроса между карточками */
+.question-item-wrapper {
+  display: block;
+}
+
+.insert-between-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+.insert-between-row:hover,
+.insert-between-row:focus-within {
+  opacity: 1;
+}
+
+.insert-between-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, #61c13a 40%, #61c13a 60%, transparent);
+}
+
+.insert-between-btn {
+  flex-shrink: 0;
+  align-self: center;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  box-shadow: 0 2px 8px rgba(97, 193, 58, 0.45);
+}
+
 /* Кнопка edit всегда занимает место, но скрывается по opacity */
 .edit-btn-on-hover {
   opacity: 0 !important;
@@ -1478,6 +1608,19 @@ const handleLogoUpload = (file: File | null): void => {
 .survey-cards-wrapper :deep(.question-drag-chosen),
 .survey-cards-wrapper :deep(.question-dragging) {
   opacity: 1;
+}
+
+/* Pulse animation for newly inserted question */
+@keyframes question-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(97, 193, 58, 0.7); }
+  40%  { box-shadow: 0 0 0 10px rgba(97, 193, 58, 0.2); }
+  70%  { box-shadow: 0 0 0 18px rgba(97, 193, 58, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(97, 193, 58, 0); }
+}
+
+.survey-cards-wrapper :deep(.question-card--new) {
+  animation: question-pulse 0.7s ease-out 2;
+  border-radius: 8px;
 }
 
 </style>
