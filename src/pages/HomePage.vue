@@ -436,12 +436,8 @@ const openTemplateSurvey = async (typeId: string, cardTitle: string): Promise<vo
   }
 }
 
-const openEngagementSurvey = async (): Promise<void> => {
-  if (isLoading.value) {
-    return
-  }
-
-  errorMessage.value = 'Сценарий исследования вовлеченности пока не настроен отдельно.'
+const openEngagementSurvey = async (cardTitle: string): Promise<void> => {
+  await openTemplateSurvey('engagement', cardTitle)
 }
 
 const openSurveyCard = async (card: SurveyCard): Promise<void> => {
@@ -451,7 +447,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   }
 
   if (card.kind === 'engagement') {
-    await openEngagementSurvey()
+    await openEngagementSurvey(card.title)
     return
   }
 

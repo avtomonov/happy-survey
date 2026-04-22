@@ -17,6 +17,21 @@ const qrCanvases = ref<Record<string, HTMLCanvasElement>>({})
 const getDisplayUrl = (link: RemoteGeneralLink): string =>
   link.url ?? link.link ?? ''
 
+const getEmbeddableUrl = (link: RemoteGeneralLink): string => {
+  const raw = getDisplayUrl(link).trim()
+  if (!raw) return ''
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return ''
+    }
+    return parsed.toString()
+  } catch {
+    return ''
+  }
+}
+
 const getLinkId = (link: RemoteGeneralLink): string =>
   link.generalLinkId ?? link.id ?? ''
 
@@ -189,6 +204,15 @@ onMounted(loadLinks)
                       type="a"
                     />
                   </div>
+                  <div v-if="getEmbeddableUrl(link)" class="link-preview-frame-wrap q-mt-sm">
+                    <iframe
+                      :src="getEmbeddableUrl(link)"
+                      class="link-preview-frame"
+                      title="Предпросмотр общей ссылки"
+                      loading="lazy"
+                      referrerpolicy="no-referrer"
+                    />
+                  </div>
                 </div>
               </div>
             </template>
@@ -216,5 +240,21 @@ onMounted(loadLinks)
 
 .link-text {
   word-break: break-all;
+}
+
+.link-preview-frame-wrap {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.link-preview-frame {
+  display: block;
+  width: 100%;
+  height: min(70vh, 560px);
+  border: 0;
 }
 </style>

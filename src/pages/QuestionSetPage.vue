@@ -673,10 +673,11 @@ const themes: SurveyTheme[] = [
 
 const activeThemeId = ref('default')
 const activeTheme = computed(() => themes.find((t) => t.id === activeThemeId.value) ?? themes[0])
+const resolvedSurveyBackground = computed(() => customBgColor.value.trim() || activeTheme.value.bg)
 const surveyContentStyle = computed(() => ({
-  backgroundColor: activeTheme.value.bg,
+  backgroundColor: resolvedSurveyBackground.value,
   color: activeTheme.value.text,
-  '--theme-bg': activeTheme.value.bg,
+  '--theme-bg': resolvedSurveyBackground.value,
   '--theme-text': activeTheme.value.text,
   '--theme-accent': activeTheme.value.accent,
   '--theme-border': `color-mix(in srgb, ${activeTheme.value.text} 25%, transparent)`,
@@ -897,14 +898,14 @@ const openChoiceImagePreview = (
               <q-separator class="q-my-md" />
 
               <!-- Футер -->
-              <div class="settings-section">
+              <!-- <div class="settings-section">
                 <div class="row items-center justify-between">
                   <div class="settings-section-title q-mb-none">Футер</div>
                   <q-btn flat round dense icon="more_horiz" color="grey-6" size="sm" />
                 </div>
               </div>
 
-              <q-separator class="q-my-md" />
+              <q-separator class="q-my-md" /> -->
 
               <!-- Шрифты -->
               <div class="settings-section">
@@ -925,7 +926,7 @@ const openChoiceImagePreview = (
 
               <!-- Макет -->
               <div class="settings-section">
-                <div class="settings-section-title">Макет</div>
+                <div class="settings-section-title q-mb-sm">Макет</div>
                 <div class="row q-gutter-xs">
                   <q-btn
                     :outline="selectedLayout !== 'centered'"
@@ -951,7 +952,7 @@ const openChoiceImagePreview = (
               <q-separator class="q-my-md" />
 
               <!-- Фон -->
-              <div class="settings-section">
+              <!-- <div class="settings-section">
                 <div class="settings-section-title">Фон</div>
                 <q-input
                   v-model="customBgColor"
@@ -966,12 +967,12 @@ const openChoiceImagePreview = (
                     />
                   </template>
                 </q-input>
-              </div>
+              </div> -->
 
-              <q-separator class="q-my-md" />
+              <!-- <q-separator class="q-my-md" /> -->
 
               <!-- Цветовые пресеты -->
-              <div class="settings-section">
+              <!-- <div class="settings-section">
                 <div class="row items-center justify-between q-mb-sm">
                   <span class="settings-section-title q-mb-none">Цветовые пресеты</span>
                   <q-btn flat dense size="sm" label="Изменить" color="primary" />
@@ -985,7 +986,7 @@ const openChoiceImagePreview = (
                     @click="customBgColor = color"
                   />
                 </div>
-              </div>
+              </div> -->
 
             </div>
           </q-tab-panel>
@@ -1000,7 +1001,7 @@ const openChoiceImagePreview = (
                   :key="theme.id"
                   class="theme-card"
                   :class="{ 'theme-card--active': activeThemeId === theme.id }"
-                  @click="activeThemeId = theme.id"
+                  @click="() => { activeThemeId = theme.id; customBgColor = theme.bg }"
                 >
                   <div
                     class="theme-preview"
@@ -1810,8 +1811,8 @@ const openChoiceImagePreview = (
 
 .logo-upload-area {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   border: 2px dashed #bdbdbd;
   border-radius: 10px;
   display: flex;
@@ -1819,6 +1820,7 @@ const openChoiceImagePreview = (
   justify-content: center;
   cursor: pointer;
   overflow: hidden;
+  margin-top: 8px;
 }
 
 .logo-preview {
@@ -2181,6 +2183,7 @@ const openChoiceImagePreview = (
   opacity: 0;
   transition: opacity 0.18s;
   justify-content: center;
+  cursor: pointer;
 }
 
 .insert-between-row:hover,
