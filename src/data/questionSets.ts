@@ -2,6 +2,14 @@ export interface QuestionChoice {
   choiceId: string
   title: string
   mark: number
+  filterId?: string
+  attributes?: Record<string, any>
+}
+
+export interface SubQuestion {
+  subQuestionId: string
+  title: string
+  attributes?: Record<string, any>
 }
 
 export interface SurveyQuestion {
@@ -10,7 +18,34 @@ export interface SurveyQuestion {
   type: string
   queueCycle: number
   choices: QuestionChoice[]
+  subQuestions?: SubQuestion[]
+  attributes?: Record<string, any>
+  localizedAttributes?: Record<string, any>
 }
+
+export interface SurveyQuestionTypeConfig {
+  type: string
+  typeName: string
+  hasChoices: boolean
+  hasSubQuestions: boolean
+}
+
+export const SURVEY_QUESTION_TYPES: SurveyQuestionTypeConfig[] = [
+  { type: '2imgh',       typeName: '2 картинки горизонтально',        hasChoices: true,  hasSubQuestions: false },
+  { type: '2imgv',       typeName: '2 картинки вертикально',          hasChoices: true,  hasSubQuestions: false },
+  { type: '4img',        typeName: '4 картинки',                      hasChoices: true,  hasSubQuestions: false },
+  { type: '4buttons',    typeName: '4 кнопки',                        hasChoices: true,  hasSubQuestions: false },
+  { type: '5stars',      typeName: 'Пять звёзд',                      hasChoices: true,  hasSubQuestions: false },
+  { type: '10slide',     typeName: 'Числовой слайдер',                hasChoices: true,  hasSubQuestions: false },
+  { type: 'sliderImages',typeName: 'Шаговой слайдер с картинками',    hasChoices: true,  hasSubQuestions: false },
+  { type: 'drivers',     typeName: 'Драйверы',                        hasChoices: true,  hasSubQuestions: false },
+  { type: 'slider-range',typeName: 'Диапазон слайдера',               hasChoices: true,  hasSubQuestions: false },
+  { type: 'text_entry',  typeName: 'Открытый вопрос',                 hasChoices: false, hasSubQuestions: false },
+  { type: 'xoutofy',     typeName: 'X ответов из Y вариантов',        hasChoices: true,  hasSubQuestions: false },
+  { type: 'complex',     typeName: 'Комплексный вопрос',              hasChoices: true,  hasSubQuestions: true  },
+  { type: 'five-circles',typeName: 'Пять кружочков',                  hasChoices: true,  hasSubQuestions: false },
+  { type: 'filters',     typeName: 'Фильтры',                         hasChoices: true,  hasSubQuestions: false },
+]
 
 export interface QuestionTypeConfig {
   id: string

@@ -122,6 +122,55 @@ const DEFAULT_SURVEY_LOCALIZED_ATTRIBUTES: Record<string, Record<string, unknown
   },
 }
 
+interface CreateChoiceQuestionPayload {
+  cycleId: string
+  type: string
+  title: string
+  attributes: Record<string, unknown>
+  localizedAttributes: Record<string, unknown>
+}
+
+interface CreateChoiceQuestionResponse {
+  questionId?: string
+  id?: string
+  question?: { questionId?: string; id?: string }
+}
+
+interface ArchiveQuestionPayload {
+  questionId: string
+}
+
+interface AddChoicePayload {
+  questionId: string
+  title: string
+  mark: number
+  localizedAttributes: Record<string, unknown>
+}
+
+interface AddChoiceResponse {
+  choiceId?: string
+  id?: string
+}
+
+interface ArchiveChoicePayload {
+  choiceId: string
+}
+
+interface AddSubQuestionPayload {
+  questionId: string
+  title: string
+  localizedAttributes: Record<string, unknown>
+}
+
+interface AddSubQuestionResponse {
+  subQuestionId?: string
+  id?: string
+}
+
+interface ArchiveSubQuestionPayload {
+  subQuestionId: string
+}
+
 interface SetQuestionTypePayload {
   questionId: string
   type: string
@@ -206,12 +255,17 @@ export interface RemoteChoice {
   choiceId?: string
   title?: string
   mark?: number
+  filterId?: string
+  attributes?: Record<string, any>
+  localizedAttributes?: Record<string, any>
 }
 
 export interface RemoteSubQuestion {
   id?: string
   subQuestionId?: string
   title?: string
+  attributes?: Record<string, any>
+  localizedAttributes?: Record<string, any>
 }
 
 export interface RemoteQuestion {
@@ -223,6 +277,8 @@ export interface RemoteQuestion {
   subQuestion?: RemoteSubQuestion
   subQuestions?: RemoteSubQuestion[]
   choices?: RemoteChoice[]
+  attributes?: Record<string, any>
+  localizedAttributes?: Record<string, any>
 }
 
 interface AuthStoreState {
@@ -465,6 +521,129 @@ export const useAuthStore = defineStore('AuthStore', {
         return Array.isArray(body.surveys) ? body.surveys : []
       }
       return []
+    },
+
+    async createChoiceQuestion(cycleId: string, type: string): Promise<string> {
+      const endpoint = type === 'complex'
+        ? '/admin/happy-survey/create-complex-question'
+        : '/admin/happy-survey/create-choice-question'
+      const result = await this.api.request<CreateChoiceQuestionResponse>(
+        `${this.getAdminApiBase()}${endpoint}`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({
+          cycleId,
+          type,
+          title: '',
+          attributes: {},
+          localizedAttributes: {},
+        } satisfies CreateChoiceQuestionPayload),
+      )
+      const body = result.body
+      const questionId = body?.questionId ?? body?.id ?? body?.question?.questionId ?? body?.question?.id ?? null
+      if (!questionId) throw new Error('Не удалось получить questionId нового вопроса')
+      return questionId
+    },
+
+    async archiveQuestion(questionId: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/archive-question`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ questionId } satisfies ArchiveQuestionPayload),
+      )
+    },
+
+    async addChoice(questionId: string, title: string, mark: number): Promise<string> {
+      const result = await this.api.request<AddChoiceResponse>(
+        `${this.getAdminApiBase()}/admin/happy-survey/add-choice`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({
+          questionId,
+          title,
+          mark,
+          localizedAttributes: {},
+        } satisfies AddChoicePayload),
+      )
+      const body = result.body
+      const choiceId = body?.choiceId ?? body?.id ?? null
+      if (!choiceId) throw new Error('Не удалось получить choiceId нового варианта ответа')
+      return choiceId
+    },
+
+    async archiveChoice(choiceId: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/archive-choice`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ choiceId } satisfies ArchiveChoicePayload),
+      )
+    },
+
+    async addSubQuestion(questionId: string, title: string): Promise<string> {
+      const result = await this.api.request<AddSubQuestionResponse>(
+        `${this.getAdminApiBase()}/admin/happy-survey/add-sub-question`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({
+          questionId,
+          title,
+          localizedAttributes: {},
+        } satisfies AddSubQuestionPayload),
+      )
+      const body = result.body
+      const subQuestionId = body?.subQuestionId ?? body?.id ?? null
+      if (!subQuestionId) throw new Error('Не удалось получить subQuestionId нового подвопроса')
+      return subQuestionId
+    },
+
+    async archiveSubQuestion(subQuestionId: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/archive-sub-question`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ subQuestionId } satisfies ArchiveSubQuestionPayload),
+      )
+    },
+
+    async uploadPublicFile(file: File): Promise<{ type: 'image' | 'video'; url: string }> {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      let authToken: string | null = null
+      try {
+        authToken = this.getStudyAuthHeaders()['Authorization']
+      } catch {
+        try {
+          authToken = this.getAuthHeaders()['Authorization']
+        } catch {
+          throw new Error('Не найден токен авторизации для загрузки файла')
+        }
+      }
+
+      const response = await fetch(
+        `${this.getAdminApiBase()}/admin/upload-public-file`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: authToken ?? '',
+          },
+          body: formData,
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`Ошибка загрузки файла: ${response.statusText}`)
+      }
+
+      const body = await response.json() as Record<string, any>
+      const url = body?.url ?? body?.path ?? body?.data?.url ?? null
+      if (!url) throw new Error('Сервер не вернул URL загруженного файла')
+      return {
+        type: file.type.startsWith('video/') ? 'video' : 'image',
+        url: String(url),
+      }
     },
 
     async setQuestionType(questionId: string, type: string): Promise<void> {

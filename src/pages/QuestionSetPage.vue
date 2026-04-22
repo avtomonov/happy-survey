@@ -3,7 +3,18 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import AppLayout from '../layouts/AppLayout.vue'
-import { getQuestionTypeConfig, getQuestionsByType, type SurveyQuestion } from '../data/questionSets'
+import SchemaField from '../components/SchemaField.vue'
+import {
+  getQuestionTypeConfig,
+  getQuestionsByType,
+  type SurveyQuestion,
+  type SubQuestion,
+  SURVEY_QUESTION_TYPES,
+} from '../data/questionSets'
+import {
+  QUESTION_SCHEMAS,
+  getSchemaDefaults,
+} from '../data/questionSchemas'
 import { useAuthStore, type RemoteQuestion } from '../stores/auth'
 
 import { reorderQuestions } from '../stores/reorderQuestions'
@@ -44,13 +55,25 @@ const mapRemoteQuestion = (q: RemoteQuestion): SurveyQuestion => {
     choiceId: c.id ?? c.choiceId ?? '',
     title: c.title ?? '',
     mark: c.mark ?? 0,
+    filterId: c.filterId,
+    attributes: c.attributes ?? c.localizedAttributes,
   }))
+  const subQuestions: SubQuestion[] = Array.isArray(q.subQuestions)
+    ? q.subQuestions.map((s) => ({
+        subQuestionId: s.subQuestionId ?? s.id ?? '',
+        title: s.title ?? '',
+        attributes: s.attributes ?? s.localizedAttributes,
+      }))
+    : []
   return {
     questionId: q.questionId ?? q.id ?? '',
     type: q.type ?? '',
     queueCycle: q.queueCycle ?? 0,
     title,
     choices,
+    subQuestions,
+    attributes: q.attributes,
+    localizedAttributes: q.localizedAttributes,
   }
 }
 
@@ -87,10 +110,27 @@ onMounted(async () => {
   }
 })
 
+interface QuestionDraftChoice {
+  choiceId: string
+  title: string
+  mark: number
+  filterId: string
+  attributes: Record<string, any>
+}
+
+interface QuestionDraftSubQuestion {
+  subQuestionId: string
+  title: string
+  attributes: Record<string, any>
+}
+
 interface QuestionDraft {
   type: string
   title: string
-  choices: { choiceId: string; title: string; mark: number }[]
+  choices: QuestionDraftChoice[]
+  subQuestions: QuestionDraftSubQuestion[]
+  localizedAttributes: Record<string, any>
+  attributes: Record<string, any>
 }
 
 const editingDrafts = ref<Record<string, QuestionDraft>>({})
@@ -100,11 +140,42 @@ const errorMap = ref<Record<string, string>>({})
 const isEditing = (questionId: string): boolean => questionId in editingDrafts.value
 const isSaving = (questionId: string): boolean => !!savingMap.value[questionId]
 
+const getActiveSchema = (questionId: string) => {
+  const type = editingDrafts.value[questionId]?.type
+  return type ? QUESTION_SCHEMAS[type] : undefined
+}
+
 const startEdit = (question: SurveyQuestion): void => {
+  const schema = QUESTION_SCHEMAS[question.type]
   editingDrafts.value[question.questionId] = {
     type: question.type,
     title: question.title,
-    choices: question.choices.map((c) => ({ ...c })),
+    choices: question.choices.map((c) => ({
+      choiceId: c.choiceId,
+      title: c.title,
+      mark: c.mark,
+      filterId: c.filterId ?? '',
+      attributes: {
+        ...getSchemaDefaults(schema?.choiceAttributeFields),
+        ...(c.attributes ?? {}),
+      },
+    })),
+    subQuestions: (question.subQuestions ?? []).map((s) => ({
+      subQuestionId: s.subQuestionId,
+      title: s.title,
+      attributes: {
+        ...getSchemaDefaults(schema?.subQuestionAttributeFields),
+        ...(s.attributes ?? {}),
+      },
+    })),
+    localizedAttributes: {
+      ...getSchemaDefaults(schema?.localizedAttributes),
+      ...(question.localizedAttributes ?? {}),
+    },
+    attributes: {
+      ...getSchemaDefaults(schema?.attributes),
+      ...(question.attributes ?? {}),
+    },
   }
   delete errorMap.value[question.questionId]
 }
@@ -112,6 +183,15 @@ const startEdit = (question: SurveyQuestion): void => {
 const cancelEdit = (questionId: string): void => {
   delete editingDrafts.value[questionId]
   delete errorMap.value[questionId]
+}
+
+// Re-initialize attributes when type changes in the editor
+const onDraftTypeChange = (questionId: string, newType: string): void => {
+  const draft = editingDrafts.value[questionId]
+  if (!draft) return
+  const schema = QUESTION_SCHEMAS[newType]
+  draft.localizedAttributes = getSchemaDefaults(schema?.localizedAttributes)
+  draft.attributes = getSchemaDefaults(schema?.attributes)
 }
 
 const saveQuestion = async (questionId: string): Promise<void> => {
@@ -124,6 +204,33 @@ const saveQuestion = async (questionId: string): Promise<void> => {
   errorMap.value[questionId] = ''
 
   try {
+    const schema = QUESTION_SCHEMAS[draft.type]
+
+    // 1. Create any new choices (with temp IDs) first — sequential, to get real IDs
+    for (const draftChoice of draft.choices) {
+      if (draftChoice.choiceId.startsWith('new-')) {
+        const realId = await authStore.addChoice(questionId, draftChoice.title, draftChoice.mark)
+        draftChoice.choiceId = realId
+        // Save choice attributes immediately after creation
+        if (schema?.choiceAttributeFields && Object.keys(draftChoice.attributes).length > 0) {
+          await authStore.setChoiceAttributes(realId, draftChoice.attributes)
+        }
+      }
+    }
+
+    // 2. Create any new subQuestions (with empty IDs) first
+    for (const draftSubQ of draft.subQuestions) {
+      if (!draftSubQ.subQuestionId) {
+        const realId = await authStore.addSubQuestion(questionId, draftSubQ.title)
+        draftSubQ.subQuestionId = realId
+        // Save subQuestion attributes immediately after creation
+        if (schema?.subQuestionAttributeFields && Object.keys(draftSubQ.attributes).length > 0) {
+          await authStore.setSubQuestionAttributes(realId, draftSubQ.attributes)
+        }
+      }
+    }
+
+    // 3. Parallel updates for changed fields
     const promises: Promise<void>[] = []
 
     if (draft.type !== question.type) {
@@ -134,9 +241,26 @@ const saveQuestion = async (questionId: string): Promise<void> => {
       promises.push(authStore.setQuestionTitle(questionId, draft.title))
     }
 
+    // Save question-level attributes/localizedAttributes if changed or schema exists
+    if (schema?.localizedAttributes || schema?.attributes) {
+      const origStr = JSON.stringify({
+        a: question.attributes ?? {},
+        la: question.localizedAttributes ?? {},
+      })
+      const draftStr = JSON.stringify({
+        a: draft.attributes,
+        la: draft.localizedAttributes,
+      })
+      if (origStr !== draftStr) {
+        promises.push(
+          authStore.setQuestionAttributes(questionId, draft.attributes, draft.localizedAttributes),
+        )
+      }
+    }
+
     for (const draftChoice of draft.choices) {
       const orig = question.choices.find((c) => c.choiceId === draftChoice.choiceId)
-      if (!orig) continue
+      if (!orig) continue // newly created
 
       if (draftChoice.title !== orig.title) {
         promises.push(authStore.setChoiceTitle(draftChoice.choiceId, draftChoice.title))
@@ -144,10 +268,34 @@ const saveQuestion = async (questionId: string): Promise<void> => {
       if (draftChoice.mark !== orig.mark) {
         promises.push(authStore.setChoiceMark(draftChoice.choiceId, draftChoice.mark))
       }
+      if (
+        schema?.choiceAttributeFields &&
+        JSON.stringify(draftChoice.attributes) !== JSON.stringify(orig.attributes ?? {})
+      ) {
+        promises.push(authStore.setChoiceAttributes(draftChoice.choiceId, draftChoice.attributes))
+      }
+    }
+
+    for (const draftSubQ of draft.subQuestions) {
+      const origSubQ = question.subQuestions?.find((s) => s.subQuestionId === draftSubQ.subQuestionId)
+      if (!origSubQ) continue // newly created
+
+      if (draftSubQ.title !== origSubQ.title) {
+        promises.push(authStore.setSubQuestionTitle(draftSubQ.subQuestionId, draftSubQ.title))
+      }
+      if (
+        schema?.subQuestionAttributeFields &&
+        JSON.stringify(draftSubQ.attributes) !== JSON.stringify(origSubQ.attributes ?? {})
+      ) {
+        promises.push(
+          authStore.setSubQuestionAttributes(draftSubQ.subQuestionId, draftSubQ.attributes),
+        )
+      }
     }
 
     await Promise.all(promises)
 
+    // 4. Commit to local state
     const idx = localQuestions.value.findIndex((q) => q.questionId === questionId)
     if (idx !== -1) {
       localQuestions.value[idx] = {
@@ -155,6 +303,9 @@ const saveQuestion = async (questionId: string): Promise<void> => {
         type: draft.type,
         title: draft.title,
         choices: draft.choices.map((c) => ({ ...c })),
+        subQuestions: draft.subQuestions.map((s) => ({ ...s })),
+        attributes: { ...draft.attributes },
+        localizedAttributes: { ...draft.localizedAttributes },
       }
     }
 
@@ -164,6 +315,132 @@ const saveQuestion = async (questionId: string): Promise<void> => {
   } finally {
     delete savingMap.value[questionId]
   }
+}
+
+// ───────── Create / Delete question ─────────
+const isCreatingQuestion = ref(false)
+const createError = ref('')
+
+const createNewQuestion = async (type: string): Promise<void> => {
+  const cycleId = authStore.cycleId
+  if (!cycleId) {
+    createError.value = 'Нет активного цикла для создания вопроса'
+    return
+  }
+  isCreatingQuestion.value = true
+  createError.value = ''
+  try {
+    const newId = await authStore.createChoiceQuestion(cycleId, type)
+    const newQuestion: SurveyQuestion = {
+      questionId: newId,
+      type,
+      title: '',
+      queueCycle: localQuestions.value.length,
+      choices: [],
+      subQuestions: [],
+    }
+    localQuestions.value.push(newQuestion)
+    startEdit(newQuestion)
+    // Scroll to new question after next tick
+    setTimeout(() => {
+      const el = document.querySelector(`[data-question-id="${newId}"]`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
+  } catch (e) {
+    createError.value = e instanceof Error ? e.message : 'Ошибка создания вопроса'
+  } finally {
+    isCreatingQuestion.value = false
+  }
+}
+
+const deletingMap = ref<Record<string, boolean>>({})
+
+const deleteQuestion = async (questionId: string): Promise<void> => {
+  if (!confirm('Удалить вопрос?')) return
+  deletingMap.value[questionId] = true
+  try {
+    await authStore.archiveQuestion(questionId)
+    localQuestions.value = localQuestions.value.filter((q) => q.questionId !== questionId)
+    cancelEdit(questionId)
+  } catch (e) {
+    errorMap.value[questionId] = e instanceof Error ? e.message : 'Ошибка удаления вопроса'
+  } finally {
+    delete deletingMap.value[questionId]
+  }
+}
+
+// ───────── Add / remove choices in draft ─────────
+const addDraftChoice = (questionId: string): void => {
+  const schema = QUESTION_SCHEMAS[editingDrafts.value[questionId]?.type ?? '']
+  editingDrafts.value[questionId]?.choices.push({
+    choiceId: `new-${Date.now()}`,
+    title: '',
+    mark: 0,
+    filterId: '',
+    attributes: getSchemaDefaults(schema?.choiceAttributeFields),
+  })
+}
+
+const removeDraftChoice = async (questionId: string, idx: number): Promise<void> => {
+  const draft = editingDrafts.value[questionId]
+  if (!draft) return
+  const choice = draft.choices[idx]
+  if (choice.choiceId.startsWith('new-')) {
+    draft.choices.splice(idx, 1)
+    return
+  }
+  try {
+    await authStore.archiveChoice(choice.choiceId)
+    draft.choices.splice(idx, 1)
+    // Sync local question state too
+    const q = localQuestions.value.find((q) => q.questionId === questionId)
+    if (q) {
+      q.choices = q.choices.filter((c) => c.choiceId !== choice.choiceId)
+    }
+  } catch (e) {
+    errorMap.value[questionId] = e instanceof Error ? e.message : 'Ошибка удаления варианта'
+  }
+}
+
+// ───────── Add / remove subQuestions in draft ─────────
+const addDraftSubQuestion = (questionId: string): void => {
+  const schema = QUESTION_SCHEMAS[editingDrafts.value[questionId]?.type ?? '']
+  editingDrafts.value[questionId]?.subQuestions.push({
+    subQuestionId: '',
+    title: '',
+    attributes: getSchemaDefaults(schema?.subQuestionAttributeFields),
+  })
+}
+
+const removeDraftSubQuestion = async (questionId: string, idx: number): Promise<void> => {
+  const draft = editingDrafts.value[questionId]
+  if (!draft) return
+  const subQ = draft.subQuestions[idx]
+  if (!subQ.subQuestionId) {
+    draft.subQuestions.splice(idx, 1)
+    return
+  }
+  try {
+    await authStore.archiveSubQuestion(subQ.subQuestionId)
+    draft.subQuestions.splice(idx, 1)
+    const q = localQuestions.value.find((q) => q.questionId === questionId)
+    if (q?.subQuestions) {
+      q.subQuestions = q.subQuestions.filter((s) => s.subQuestionId !== subQ.subQuestionId)
+    }
+  } catch (e) {
+    errorMap.value[questionId] = e instanceof Error ? e.message : 'Ошибка удаления подвопроса'
+  }
+}
+
+// Helpers for draft type capabilities
+const draftHasChoices = (questionId: string): boolean => {
+  const type = editingDrafts.value[questionId]?.type ?? ''
+  return SURVEY_QUESTION_TYPES.find((t) => t.type === type)?.hasChoices ?? true
+}
+
+const draftHasSubQuestions = (questionId: string): boolean => {
+  const type = editingDrafts.value[questionId]?.type ?? ''
+  return SURVEY_QUESTION_TYPES.find((t) => t.type === type)?.hasSubQuestions ?? false
 }
 
 const goBack = (): void => {
@@ -491,6 +768,34 @@ const handleLogoUpload = (file: File | null): void => {
             </div>
           </div>
 
+          <!-- Добавить вопрос -->
+          <div class="row items-center q-gutter-sm q-mb-md">
+            <q-btn-dropdown
+              color="primary"
+              unelevated
+              label="Добавить вопрос"
+              icon="add"
+              :loading="isCreatingQuestion"
+              :disable="isCreatingQuestion"
+            >
+              <q-list dense>
+                <q-item
+                  v-for="qType in SURVEY_QUESTION_TYPES"
+                  :key="qType.type"
+                  clickable
+                  v-close-popup
+                  @click="createNewQuestion(qType.type)"
+                >
+                  <q-item-section>
+                    <q-item-label>{{ qType.typeName }}</q-item-label>
+                    <q-item-label caption>{{ qType.type }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+            <div v-if="createError" class="text-negative text-caption">{{ createError }}</div>
+          </div>
+
       <div v-if="isLoadingQuestions" class="row justify-center q-pa-xl">
         <q-spinner size="40px" color="primary" />
       </div>
@@ -499,7 +804,7 @@ const handleLogoUpload = (file: File | null): void => {
         {{ loadError }}
       </div>
 
-      <div v-else-if="localQuestions.length === 0" class="text-negative text-body1 q-mb-md">
+      <div v-else-if="localQuestions.length === 0" class="text-body1 text-grey-7 q-mb-md">
         {{ emptyStateMessage }}
       </div>
 
@@ -516,6 +821,7 @@ const handleLogoUpload = (file: File | null): void => {
             <template #item="{ element: question, index }">
               <q-card
                 :key="question.questionId"
+                :data-question-id="question.questionId"
                 flat
                 class="question-card custom-question-card"
               >
@@ -523,9 +829,24 @@ const handleLogoUpload = (file: File | null): void => {
                   <div class="row items-start justify-between no-wrap">
                     <div class="col">
                       <div class="row items-center q-gutter-xs q-mb-xs">
-                        <q-icon name="drag_indicator" class="drag-handle" style="cursor:grab;opacity:0.5;margin-right:4px" />
+                        <q-icon name="drag_indicator" class="drag-handle drag-handle-icon" />
                       </div>
                       <template v-if="isEditing(question.questionId)">
+                        <!-- Тип вопроса -->
+                        <q-select
+                          :model-value="editingDrafts[question.questionId].type"
+                          :options="SURVEY_QUESTION_TYPES"
+                          option-value="type"
+                          option-label="typeName"
+                          emit-value
+                          map-options
+                          dense
+                          outlined
+                          label="Тип вопроса"
+                          class="q-mb-sm"
+                          @update:model-value="(v) => { editingDrafts[question.questionId].type = v; onDraftTypeChange(question.questionId, v) }"
+                        />
+                        <!-- Заголовок -->
                         <q-input
                           v-model="editingDrafts[question.questionId].title"
                           dense
@@ -533,9 +854,51 @@ const handleLogoUpload = (file: File | null): void => {
                           autogrow
                           label="Заголовок вопроса"
                         />
+
+                        <!-- ── Настройки: localizedAttributes ── -->
+                        <template v-if="getActiveSchema(question.questionId)?.localizedAttributes">
+                          <q-separator class="q-my-sm" />
+                          <div class="schema-section-title">Локализованные настройки</div>
+                          <template
+                            v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.localizedAttributes"
+                            :key="`la-${fieldKey}`"
+                          >
+                            <schema-field
+                              :field-def="fieldDef"
+                              :model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey]"
+                              class="q-mb-xs"
+                              @update:model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey] = $event"
+                            />
+                          </template>
+                        </template>
+
+                        <!-- ── Настройки: attributes ── -->
+                        <template v-if="getActiveSchema(question.questionId)?.attributes">
+                          <q-separator class="q-my-sm" />
+                          <div class="schema-section-title">Настройки вопроса</div>
+                          <template
+                            v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.attributes"
+                            :key="`a-${fieldKey}`"
+                          >
+                            <schema-field
+                              :field-def="fieldDef"
+                              :model-value="editingDrafts[question.questionId].attributes[fieldKey]"
+                              class="q-mb-xs"
+                              @update:model-value="editingDrafts[question.questionId].attributes[fieldKey] = $event"
+                            />
+                          </template>
+                        </template>
                       </template>
+
                       <div v-else class="text-subtitle1 text-weight-medium">
                         {{ index + 1 }}. {{ question.title }}
+                        <q-badge
+                          v-if="question.type"
+                          color="grey-4"
+                          text-color="grey-8"
+                          class="q-ml-sm"
+                          style="font-size: 10px"
+                        >{{ question.type }}</q-badge>
                       </div>
                     </div>
                     <q-btn
@@ -549,31 +912,157 @@ const handleLogoUpload = (file: File | null): void => {
                     />
                   </div>
                 </q-card-section>
+
                 <q-card-section class="q-pt-sm">
                   <div class="column q-gutter-xs">
+                    <!-- ── Edit mode ── -->
                     <template v-if="isEditing(question.questionId)">
-                      <div
-                        v-for="(choice, idx) in editingDrafts[question.questionId].choices"
-                        :key="choice.choiceId"
-                        class="row items-center q-gutter-sm"
-                      >
-                        <q-input
-                          v-model="editingDrafts[question.questionId].choices[idx].title"
+
+                      <!-- Choices -->
+                      <template v-if="draftHasChoices(question.questionId)">
+                        <q-separator class="q-my-xs" />
+                        <div class="schema-section-title">
+                          {{ getActiveSchema(question.questionId)?.choicesTitle ?? 'Варианты ответов' }}
+                        </div>
+                        <div
+                          v-for="(choice, idx) in editingDrafts[question.questionId].choices"
+                          :key="choice.choiceId"
+                          class="choice-edit-block q-mb-sm"
+                        >
+                          <div class="row items-center q-gutter-sm q-mb-xs">
+                            <!-- title field -->
+                            <q-input
+                              v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'title' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
+                              v-model="editingDrafts[question.questionId].choices[idx].title"
+                              dense
+                              outlined
+                              :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.title?.caption ?? 'Текст варианта'"
+                              class="col"
+                            />
+                            <!-- mark field -->
+                            <q-input
+                              v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'mark' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
+                              v-model.number="editingDrafts[question.questionId].choices[idx].mark"
+                              dense
+                              outlined
+                              type="number"
+                              :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.mark?.caption ?? 'Балл'"
+                              style="max-width: 90px"
+                            />
+                            <!-- filterId field (filters type) -->
+                            <q-input
+                              v-if="getActiveSchema(question.questionId)?.choiceSchemaFields?.filterId"
+                              v-model="editingDrafts[question.questionId].choices[idx].filterId"
+                              dense
+                              outlined
+                              label="ID фильтра"
+                              class="col"
+                            />
+                            <q-btn
+                              flat
+                              dense
+                              round
+                              icon="delete"
+                              color="negative"
+                              size="sm"
+                              :disable="isSaving(question.questionId)"
+                              @click="removeDraftChoice(question.questionId, idx)"
+                            />
+                          </div>
+                          <!-- Choice attributes from schema -->
+                          <div
+                            v-if="getActiveSchema(question.questionId)?.choiceAttributeFields"
+                            class="choice-attrs-block q-pl-sm"
+                          >
+                            <template
+                              v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.choiceAttributeFields"
+                              :key="`ca-${fieldKey}`"
+                            >
+                              <schema-field
+                                :field-def="fieldDef"
+                                :model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey]"
+                                class="q-mb-xs"
+                                @update:model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey] = $event"
+                              />
+                            </template>
+                          </div>
+                        </div>
+                        <q-btn
+                          flat
                           dense
-                          outlined
-                          label="Текст варианта"
-                          class="col"
+                          size="sm"
+                          icon="add"
+                          label="Добавить вариант"
+                          color="primary"
+                          class="q-mt-xs"
+                          :disable="isSaving(question.questionId)"
+                          @click="addDraftChoice(question.questionId)"
                         />
-                        <q-input
-                          v-model.number="editingDrafts[question.questionId].choices[idx].mark"
+                      </template>
+
+                      <!-- SubQuestions (complex) -->
+                      <template v-if="draftHasSubQuestions(question.questionId)">
+                        <q-separator class="q-my-sm" />
+                        <div class="schema-section-title">
+                          {{ getActiveSchema(question.questionId)?.subQuestionsTitle ?? 'Подвопросы' }}
+                        </div>
+                        <div
+                          v-for="(subQ, idx) in editingDrafts[question.questionId].subQuestions"
+                          :key="subQ.subQuestionId || idx"
+                          class="choice-edit-block q-mb-sm"
+                        >
+                          <div class="row items-center q-gutter-sm q-mb-xs">
+                            <q-input
+                              v-model="editingDrafts[question.questionId].subQuestions[idx].title"
+                              dense
+                              outlined
+                              label="Текст подвопроса"
+                              class="col"
+                            />
+                            <q-btn
+                              flat
+                              dense
+                              round
+                              icon="delete"
+                              color="negative"
+                              size="sm"
+                              :disable="isSaving(question.questionId)"
+                              @click="removeDraftSubQuestion(question.questionId, idx)"
+                            />
+                          </div>
+                          <!-- SubQuestion attributes -->
+                          <div
+                            v-if="getActiveSchema(question.questionId)?.subQuestionAttributeFields"
+                            class="choice-attrs-block q-pl-sm"
+                          >
+                            <template
+                              v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.subQuestionAttributeFields"
+                              :key="`sqa-${fieldKey}`"
+                            >
+                              <schema-field
+                                :field-def="fieldDef"
+                                :model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey]"
+                                class="q-mb-xs"
+                                @update:model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey] = $event"
+                              />
+                            </template>
+                          </div>
+                        </div>
+                        <q-btn
+                          flat
                           dense
-                          outlined
-                          type="number"
-                          label="Оценка"
-                          style="max-width: 90px"
+                          size="sm"
+                          icon="add"
+                          label="Добавить подвопрос"
+                          color="primary"
+                          class="q-mt-xs"
+                          :disable="isSaving(question.questionId)"
+                          @click="addDraftSubQuestion(question.questionId)"
                         />
-                      </div>
+                      </template>
                     </template>
+
+                    <!-- ── View mode ── -->
                     <template v-else>
                       <div
                         v-for="choice in question.choices"
@@ -583,9 +1072,21 @@ const handleLogoUpload = (file: File | null): void => {
                         <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
                         <span class="choice-mark">{{ choice.mark }}</span>
                       </div>
+                      <template v-if="question.subQuestions && question.subQuestions.length">
+                        <q-separator class="q-my-xs" />
+                        <div
+                          v-for="subQ in question.subQuestions"
+                          :key="subQ.subQuestionId"
+                          class="subquestion-row"
+                        >
+                          <q-icon name="subdirectory_arrow_right" size="14px" class="q-mr-xs" />
+                          <span>{{ subQ.title || 'Без названия' }}</span>
+                        </div>
+                      </template>
                     </template>
                   </div>
                 </q-card-section>
+
                 <template v-if="isEditing(question.questionId)">
                   <q-separator />
                   <q-card-section class="q-pt-sm">
@@ -595,22 +1096,34 @@ const handleLogoUpload = (file: File | null): void => {
                     >
                       {{ errorMap[question.questionId] }}
                     </div>
-                    <div class="row q-gutter-sm">
+                    <div class="row justify-between items-center">
+                      <div class="row q-gutter-sm">
+                        <q-btn
+                          label="Сохранить"
+                          color="primary"
+                          unelevated
+                          dense
+                          :loading="isSaving(question.questionId)"
+                          :disable="isSaving(question.questionId) || deletingMap[question.questionId]"
+                          @click="saveQuestion(question.questionId)"
+                        />
+                        <q-btn
+                          label="Отмена"
+                          flat
+                          dense
+                          :disable="isSaving(question.questionId) || deletingMap[question.questionId]"
+                          @click="cancelEdit(question.questionId)"
+                        />
+                      </div>
                       <q-btn
-                        label="Сохранить"
-                        color="primary"
-                        unelevated
-                        dense
-                        :loading="isSaving(question.questionId)"
-                        :disable="isSaving(question.questionId)"
-                        @click="saveQuestion(question.questionId)"
-                      />
-                      <q-btn
-                        label="Отмена"
+                        label="Удалить вопрос"
                         flat
                         dense
-                        :disable="isSaving(question.questionId)"
-                        @click="cancelEdit(question.questionId)"
+                        color="negative"
+                        icon="delete"
+                        :loading="deletingMap[question.questionId]"
+                        :disable="isSaving(question.questionId) || deletingMap[question.questionId]"
+                        @click="deleteQuestion(question.questionId)"
                       />
                     </div>
                   </q-card-section>
@@ -896,6 +1409,38 @@ const handleLogoUpload = (file: File | null): void => {
   color: var(--theme-accent, #1976d2);
 }
 
+.subquestion-row {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--theme-text, #616161);
+  padding: 4px 6px;
+  opacity: 0.85;
+}
+
+/* ── Schema fields ── */
+.schema-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--theme-text, #757575);
+  margin-bottom: 6px;
+}
+
+.choice-edit-block {
+  border: 1px solid var(--theme-border, #e8e8e8);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--theme-surface, #fafafa);
+}
+
+.choice-attrs-block {
+  border-top: 1px dashed var(--theme-border, #e0e0e0);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
 
 /* Стили для карточки и кнопки редактирования */
 .survey-cards-wrapper :deep(.custom-question-card) {
@@ -916,6 +1461,19 @@ const handleLogoUpload = (file: File | null): void => {
 .survey-cards-wrapper :deep(.custom-question-card:hover) .edit-btn-on-hover {
   opacity: 1 !important;
   pointer-events: auto;
+}
+
+/* Иконка перетаскивания — скрыта, появляется при ховере на карточку */
+.drag-handle-icon {
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.22s;
+  margin-right: 4px;
+  color: var(--theme-text, #424242);
+}
+
+.survey-cards-wrapper :deep(.custom-question-card:hover) .drag-handle-icon {
+  opacity: 0.5;
 }
 
 /* Drag-and-drop states */
