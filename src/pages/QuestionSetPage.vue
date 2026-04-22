@@ -453,7 +453,7 @@ const handleLogoUpload = (file: File | null): void => {
         <div class="q-pa-md">
           <div class="row justify-end q-gutter-sm q-mb-lg">
             <q-btn
-              label="Назад к видам"
+              label="Назад к видам опросов"
               color="primary"
               outline
               style="min-width: 160px"

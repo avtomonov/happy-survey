@@ -139,41 +139,19 @@ const errorMessage = ref<string>('')
 const isLoaded = ref<boolean>(false)
 const showLoader = ref<boolean>(!hasShownLoader)
 const showCards = ref<boolean>(hasShownLoader)
+const showQuestion = ref<boolean>(hasShownLoader)
 const emit = defineEmits<{ (event: 'loaded'): void }>()
 
 let finishTimerId: number | null = null
 let hideTimerId: number | null = null
 let cardsTimerId: number | null = null
 
-interface CharSpan {
-  char: string
-  charIndex: number
-  globalCharIndex: number
-}
-
-interface WordSpan {
-  word: string
-  wordIndex: number
-  chars: CharSpan[]
-}
-
-function splitTextIntoWords(text: string): WordSpan[] {
-  const words = text.split(' ')
-  let globalCharIndex = 0
-  return words.map((word, wordIndex) => ({
-    word,
-    wordIndex,
-    chars: word.split('').map((char, charIndex) => {
-      const charObj = { char, charIndex, globalCharIndex }
-      globalCharIndex++
-      return charObj
-    }),
-  }))
-}
 
 onMounted(() => {
   if (hasShownLoader) {
     emit('loaded')
+    showQuestion.value = true
+    showCards.value = true
     return
   }
 
@@ -186,9 +164,13 @@ onMounted(() => {
       showLoader.value = false
       emit('loaded')
 
+      // Плавно показываем вопрос
+      showQuestion.value = true
+
+      // После появления вопроса (анимация 600мс), показываем карточки
       cardsTimerId = window.setTimeout(() => {
         showCards.value = true
-      }, 154)
+      }, 600)
     }, 364)
   }, 2048)
 })
@@ -336,7 +318,10 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
 
   <AppLayout>
     <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
-      <div v-if="!isLoading" class="text-h2 text-center title-with-animation">
+      <div
+        class="text-h2 text-center fade-in-css"
+        style="margin-bottom: 50px; margin-top: 100px;"
+      >
         Для какой цели вы хотите использовать конструктор?
         <!-- <span
           v-for="word in splitTextIntoWords('Для какой цели вы хотите использовать конструктор?')"
@@ -364,7 +349,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
         </div>
       </div>
 
-      <div v-if="!isLoading" class="survey-sections full-width">
+      <div v-if="!isLoading && showCards" class="survey-sections full-width">
         <div
           v-for="category in surveyCardCategories"
           :key="category.id"
@@ -674,4 +659,20 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
     max-width: 320px;
   }
 }
+/* Плавное появление вопроса только на CSS */
+.fade-in-css {
+  opacity: 0;
+  animation: fadeInOpacity 0.7s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+}
+
+@keyframes fadeInOpacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 </style>
+
+
