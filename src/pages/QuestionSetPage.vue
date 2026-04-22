@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import draggable from 'vuedraggable'
 import AppLayout from '../layouts/AppLayout.vue'
 import { getQuestionTypeConfig, getQuestionsByType, type SurveyQuestion } from '../data/questionSets'
 import { useAuthStore, type RemoteQuestion } from '../stores/auth'
+
+import { reorderQuestions } from '../stores/reorderQuestions'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +26,14 @@ const emptyStateMessage = computed(() => {
 const localQuestions = ref<SurveyQuestion[]>([])
 const isLoadingQuestions = ref(false)
 const loadError = ref('')
+
+const ensureQuestionIds = (questions: SurveyQuestion[]): SurveyQuestion[] => (
+  questions.map((question, index) => ({
+    ...question,
+    questionId: question.questionId?.trim() || `question-${index + 1}`,
+    queueCycle: Number.isFinite(question.queueCycle) ? question.queueCycle : index,
+  }))
+)
 
 const mapRemoteQuestion = (q: RemoteQuestion): SurveyQuestion => {
   const subQuestion = Array.isArray(q.subQuestions) && q.subQuestions.length > 0
@@ -49,7 +60,7 @@ const loadFromBackend = async (cycleId: string): Promise<void> => {
   try {
     const remote = await authStore.getQuestions(cycleId)
     if (remote.length > 0) {
-      localQuestions.value = remote.map(mapRemoteQuestion)
+      localQuestions.value = ensureQuestionIds(remote.map(mapRemoteQuestion))
       return
     }
   } catch (e) {
@@ -58,10 +69,10 @@ const loadFromBackend = async (cycleId: string): Promise<void> => {
     isLoadingQuestions.value = false
   }
   // Fallback to local data if backend returned nothing
-  localQuestions.value = getQuestionsByType(selectedTypeId.value).map((q) => ({
+  localQuestions.value = ensureQuestionIds(getQuestionsByType(selectedTypeId.value).map((q) => ({
     ...q,
     choices: q.choices.map((c) => ({ ...c })),
-  }))
+  })))
 }
 
 onMounted(async () => {
@@ -69,10 +80,10 @@ onMounted(async () => {
   if (cycleId) {
     await loadFromBackend(cycleId)
   } else {
-    localQuestions.value = getQuestionsByType(selectedTypeId.value).map((q) => ({
+    localQuestions.value = ensureQuestionIds(getQuestionsByType(selectedTypeId.value).map((q) => ({
       ...q,
       choices: q.choices.map((c) => ({ ...c })),
-    }))
+    })))
   }
 })
 
@@ -157,6 +168,12 @@ const saveQuestion = async (questionId: string): Promise<void> => {
 
 const goBack = (): void => {
   router.push({ name: 'home' })
+}
+
+// Drag-and-drop reorder handler
+async function handleDragEnd(newList: SurveyQuestion[]) {
+  await reorderQuestions(newList)
+  localQuestions.value = [...newList]
 }
 
 // ───────── Sidebar ─────────
@@ -261,8 +278,6 @@ const handleLogoUpload = (file: File | null): void => {
           />
         </q-tabs>
 
-        <q-separator />
-
         <q-tab-panels v-model="sidebarTab" animated class="sidebar-panels">
 
           <!-- ───── Таб: Настройки ───── -->
@@ -291,7 +306,6 @@ const handleLogoUpload = (file: File | null): void => {
                 />
               </div> -->
 
-              <q-separator class="q-my-md" />
 
               <!-- Логотип -->
               <div class="settings-section">
@@ -490,124 +504,120 @@ const handleLogoUpload = (file: File | null): void => {
       </div>
 
       <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
-        <q-card v-for="(question, index) in localQuestions" :key="question.questionId" bordered flat>
-          <q-card-section class="q-pb-sm">
-            <div class="row items-start justify-between no-wrap">
-              <div class="col">
-                <div class="row items-center q-gutter-xs q-mb-xs">
-                  <span class="text-caption text-grey-7">#{{ index + 1 }}</span>
-                  <template v-if="isEditing(question.questionId)">
-                    <q-input
-                      v-model="editingDrafts[question.questionId].type"
-                      dense
-                      outlined
-                      label="Тип"
-                      style="max-width: 140px"
-                    />
-                  </template>
-                  <span v-else class="text-caption text-grey-7">· {{ question.type }}</span>
-                </div>
-
-                <template v-if="isEditing(question.questionId)">
-                  <q-input
-                    v-model="editingDrafts[question.questionId].title"
-                    dense
-                    outlined
-                    autogrow
-                    label="Заголовок вопроса"
-                  />
-                </template>
-                <div v-else class="text-subtitle1 text-weight-medium q-mt-xs">
-                  {{ question.title }}
-                </div>
-              </div>
-
-              <q-btn
-                v-if="!isEditing(question.questionId)"
+          <draggable
+            v-model="localQuestions"
+            item-key="questionId"
+            :animation="180"
+            ghost-class="question-drag-ghost"
+            chosen-class="question-drag-chosen"
+            drag-class="question-dragging"
+            @end="handleDragEnd(localQuestions)"
+          >
+            <template #item="{ element: question, index }">
+              <q-card
+                :key="question.questionId"
                 flat
-                dense
-                round
-                icon="edit"
-                color="grey-6"
-                class="q-ml-sm"
-                @click="startEdit(question)"
-              />
-            </div>
-          </q-card-section>
-
-          <q-separator />
-
-          <q-card-section class="q-pt-sm">
-            <div class="text-caption text-grey-7 q-mb-xs">Варианты ответов:</div>
-
-            <div class="column q-gutter-xs">
-              <template v-if="isEditing(question.questionId)">
-                <div
-                  v-for="(choice, idx) in editingDrafts[question.questionId].choices"
-                  :key="choice.choiceId"
-                  class="row items-center q-gutter-sm"
-                >
-                  <q-input
-                    v-model="editingDrafts[question.questionId].choices[idx].title"
-                    dense
-                    outlined
-                    label="Текст варианта"
-                    class="col"
-                  />
-                  <q-input
-                    v-model.number="editingDrafts[question.questionId].choices[idx].mark"
-                    dense
-                    outlined
-                    type="number"
-                    label="Оценка"
-                    style="max-width: 90px"
-                  />
-                </div>
-              </template>
-
-              <template v-else>
-                <div
-                  v-for="choice in question.choices"
-                  :key="choice.choiceId"
-                  class="choice-row"
-                >
-                  <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
-                  <span class="choice-mark">{{ choice.mark }}</span>
-                </div>
-              </template>
-            </div>
-          </q-card-section>
-
-          <template v-if="isEditing(question.questionId)">
-            <q-separator />
-            <q-card-section class="q-pt-sm">
-              <div
-                v-if="errorMap[question.questionId]"
-                class="text-negative text-caption q-mb-sm"
+                class="question-card custom-question-card"
               >
-                {{ errorMap[question.questionId] }}
-              </div>
-              <div class="row q-gutter-sm">
-                <q-btn
-                  label="Сохранить"
-                  color="primary"
-                  unelevated
-                  dense
-                  :loading="isSaving(question.questionId)"
-                  :disable="isSaving(question.questionId)"
-                  @click="saveQuestion(question.questionId)"
-                />
-                <q-btn
-                  label="Отмена"
-                  flat
-                  dense
-                  :disable="isSaving(question.questionId)"
-                  @click="cancelEdit(question.questionId)"
-                />
-              </div>
-            </q-card-section>
-          </template>
-        </q-card>
+                <q-card-section class="q-pb-sm">
+                  <div class="row items-start justify-between no-wrap">
+                    <div class="col">
+                      <div class="row items-center q-gutter-xs q-mb-xs">
+                        <q-icon name="drag_indicator" class="drag-handle" style="cursor:grab;opacity:0.5;margin-right:4px" />
+                      </div>
+                      <template v-if="isEditing(question.questionId)">
+                        <q-input
+                          v-model="editingDrafts[question.questionId].title"
+                          dense
+                          outlined
+                          autogrow
+                          label="Заголовок вопроса"
+                        />
+                      </template>
+                      <div v-else class="text-subtitle1 text-weight-medium">
+                        {{ index + 1 }}. {{ question.title }}
+                      </div>
+                    </div>
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="edit"
+                      color="grey-6"
+                      class="edit-btn-on-hover q-ml-sm"
+                      @click="startEdit(question)"
+                    />
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-sm">
+                  <div class="column q-gutter-xs">
+                    <template v-if="isEditing(question.questionId)">
+                      <div
+                        v-for="(choice, idx) in editingDrafts[question.questionId].choices"
+                        :key="choice.choiceId"
+                        class="row items-center q-gutter-sm"
+                      >
+                        <q-input
+                          v-model="editingDrafts[question.questionId].choices[idx].title"
+                          dense
+                          outlined
+                          label="Текст варианта"
+                          class="col"
+                        />
+                        <q-input
+                          v-model.number="editingDrafts[question.questionId].choices[idx].mark"
+                          dense
+                          outlined
+                          type="number"
+                          label="Оценка"
+                          style="max-width: 90px"
+                        />
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div
+                        v-for="choice in question.choices"
+                        :key="choice.choiceId"
+                        class="choice-row"
+                      >
+                        <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
+                        <span class="choice-mark">{{ choice.mark }}</span>
+                      </div>
+                    </template>
+                  </div>
+                </q-card-section>
+                <template v-if="isEditing(question.questionId)">
+                  <q-separator />
+                  <q-card-section class="q-pt-sm">
+                    <div
+                      v-if="errorMap[question.questionId]"
+                      class="text-negative text-caption q-mb-sm"
+                    >
+                      {{ errorMap[question.questionId] }}
+                    </div>
+                    <div class="row q-gutter-sm">
+                      <q-btn
+                        label="Сохранить"
+                        color="primary"
+                        unelevated
+                        dense
+                        :loading="isSaving(question.questionId)"
+                        :disable="isSaving(question.questionId)"
+                        @click="saveQuestion(question.questionId)"
+                      />
+                      <q-btn
+                        label="Отмена"
+                        flat
+                        dense
+                        :disable="isSaving(question.questionId)"
+                        @click="cancelEdit(question.questionId)"
+                      />
+                    </div>
+                  </q-card-section>
+                </template>
+              </q-card>
+            </template>
+          </draggable>
       </div>
 
         </div><!-- /q-pa-lg -->
@@ -885,5 +895,38 @@ const handleLogoUpload = (file: File | null): void => {
   font-weight: 700;
   color: var(--theme-accent, #1976d2);
 }
-</style>
 
+
+/* Стили для карточки и кнопки редактирования */
+.survey-cards-wrapper :deep(.custom-question-card) {
+  transition: background-color 0.22s;
+}
+
+.survey-cards-wrapper :deep(.custom-question-card:hover) {
+  background-color: color-mix(in srgb, var(--theme-accent, #1976d2) 15%, transparent);
+}
+
+/* Кнопка edit всегда занимает место, но скрывается по opacity */
+.edit-btn-on-hover {
+  opacity: 0 !important;
+  transition: opacity 0.22s;
+  pointer-events: none;
+}
+
+.survey-cards-wrapper :deep(.custom-question-card:hover) .edit-btn-on-hover {
+  opacity: 1 !important;
+  pointer-events: auto;
+}
+
+/* Drag-and-drop states */
+/* ghost = место-«дырка» в списке, делаем невидимым */
+.survey-cards-wrapper :deep(.question-drag-ghost) {
+  opacity: 0 !important;
+}
+
+.survey-cards-wrapper :deep(.question-drag-chosen),
+.survey-cards-wrapper :deep(.question-dragging) {
+  opacity: 1;
+}
+
+</style>
