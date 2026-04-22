@@ -550,6 +550,81 @@ const handleLogoUpload = (file: File | null): void => {
   reader.onload = (e) => { uploadedLogo.value = e.target?.result as string }
   reader.readAsDataURL(file)
 }
+
+const previewDialogOpen = ref(false)
+const previewDialogTitle = ref('')
+const previewDialogImageSrc = ref('')
+const brokenPreviewTypes = ref<Record<string, boolean>>({})
+const brokenChoiceImages = ref<Record<string, boolean>>({})
+
+const getQuestionPreviewSrc = (type: string): string => `/question-type-previews/${type}.svg`
+
+const normalizeImageUrl = (value: unknown): string => {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+const getChoiceImageSrc = (questionId: string, choiceId: string, attributes?: Record<string, any>): string => {
+  const imageUrl = normalizeImageUrl(attributes?.image)
+
+  if (!imageUrl || brokenChoiceImages.value[`${questionId}:${choiceId}`]) {
+    return ''
+  }
+
+  return imageUrl
+}
+
+const hasQuestionPreview = (type: string): boolean => {
+  return !!type && !brokenPreviewTypes.value[type]
+}
+
+const markQuestionPreviewMissing = (type: string): void => {
+  brokenPreviewTypes.value = {
+    ...brokenPreviewTypes.value,
+    [type]: true,
+  }
+
+  if (previewDialogImageSrc.value === getQuestionPreviewSrc(type)) {
+    previewDialogOpen.value = false
+  }
+}
+
+const markChoiceImageMissing = (questionId: string, choiceId: string): void => {
+  const key = `${questionId}:${choiceId}`
+  brokenChoiceImages.value = {
+    ...brokenChoiceImages.value,
+    [key]: true,
+  }
+
+  if (previewDialogImageSrc.value && previewDialogImageSrc.value === getChoiceImageSrc(questionId, choiceId)) {
+    previewDialogOpen.value = false
+  }
+}
+
+const openPreviewDialog = (title: string, imageSrc: string): void => {
+  if (!imageSrc) return
+
+  previewDialogTitle.value = title
+  previewDialogImageSrc.value = imageSrc
+  previewDialogOpen.value = true
+}
+
+const openQuestionPreview = (type: string): void => {
+  if (!hasQuestionPreview(type)) return
+
+  openPreviewDialog(
+    SURVEY_QUESTION_TYPES.find((item) => item.type === type)?.typeName ?? type,
+    getQuestionPreviewSrc(type),
+  )
+}
+
+const openChoiceImagePreview = (
+  questionTitle: string,
+  choiceTitle: string,
+  imageSrc: string,
+): void => {
+  const title = [questionTitle, choiceTitle].filter(Boolean).join(' / ')
+  openPreviewDialog(title || 'Изображение варианта ответа', imageSrc)
+}
 </script>
 
 <template>
@@ -829,8 +904,20 @@ const handleLogoUpload = (file: File | null): void => {
                   :key="qType.type"
                   clickable
                   v-close-popup
+                  class="question-type-menu-item"
                   @click="createNewQuestion(qType.type)"
                 >
+                  <div
+                    v-if="hasQuestionPreview(qType.type)"
+                    class="question-type-menu-preview"
+                  >
+                    <img
+                      :src="getQuestionPreviewSrc(qType.type)"
+                      :alt="`Превью ${qType.type}`"
+                      class="question-type-menu-preview-image"
+                      @error="markQuestionPreviewMissing(qType.type)"
+                    />
+                  </div>
                   <q-item-section>
                     <q-item-label>{{ qType.typeName }}</q-item-label>
                     <q-item-label caption>{{ qType.type }}</q-item-label>
@@ -856,6 +943,7 @@ const handleLogoUpload = (file: File | null): void => {
       <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
           <!-- Insert before first question -->
           <div class="insert-between-row" @click="insertMenuBefore = !insertMenuBefore">
+            <div class="insert-between-line" />
             <q-btn
               round
               unelevated
@@ -868,6 +956,7 @@ const handleLogoUpload = (file: File | null): void => {
             >
               <i class="fa-solid fa-plus" />
             </q-btn>
+            <div class="insert-between-line" />
             <q-menu
                 v-if="insertMenuBefore"
                 v-model="insertMenuBefore"
@@ -884,8 +973,20 @@ const handleLogoUpload = (file: File | null): void => {
                     :key="qType.type"
                     v-ripple
                     clickable
+                    class="question-type-menu-item"
                     @click="createNewQuestion(qType.type, 0)"
                   >
+                    <div
+                      v-if="hasQuestionPreview(qType.type)"
+                      class="question-type-menu-preview"
+                    >
+                      <img
+                        :src="getQuestionPreviewSrc(qType.type)"
+                        :alt="`Превью ${qType.type}`"
+                        class="question-type-menu-preview-image"
+                        @error="markQuestionPreviewMissing(qType.type)"
+                      />
+                    </div>
                     <q-item-section>
                       <q-item-label>{{ qType.typeName }}</q-item-label>
                       <q-item-label caption>{{ qType.type }}</q-item-label>
@@ -914,7 +1015,7 @@ const handleLogoUpload = (file: File | null): void => {
               >
                 <q-card-section class="q-pb-sm">
                   <div class="row items-start justify-between no-wrap">
-                    <div class="col">
+                    <div class="col min-width-0">
                       <div class="row items-center q-gutter-xs q-mb-xs">
                         <q-icon name="drag_indicator" class="drag-handle drag-handle-icon" />
                       </div>
@@ -988,15 +1089,31 @@ const handleLogoUpload = (file: File | null): void => {
                         >{{ question.type }}</q-badge>
                       </div>
                     </div>
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="edit"
-                      color="grey-6"
-                      class="edit-btn-on-hover q-ml-sm"
-                      @click="startEdit(question)"
-                    />
+                    <div class="row items-start no-wrap q-ml-sm question-card-side">
+                      <button
+                        v-if="!isEditing(question.questionId) && hasQuestionPreview(question.type)"
+                        type="button"
+                        class="question-preview-button"
+                        :aria-label="`Открыть превью для ${question.type}`"
+                        @click="openQuestionPreview(question.type)"
+                      >
+                        <img
+                          :src="getQuestionPreviewSrc(question.type)"
+                          :alt="`Превью ${question.type}`"
+                          class="question-preview-image"
+                          @error="markQuestionPreviewMissing(question.type)"
+                        />
+                      </button>
+                      <q-btn
+                        flat
+                        dense
+                        round
+                        icon="edit"
+                        color="grey-6"
+                        class="edit-btn-on-hover"
+                        @click="startEdit(question)"
+                      />
+                    </div>
                   </div>
                 </q-card-section>
 
@@ -1156,7 +1273,21 @@ const handleLogoUpload = (file: File | null): void => {
                         :key="choice.choiceId"
                         class="choice-row"
                       >
-                        <span class="choice-radio-circle" />
+                        <button
+                          v-if="getChoiceImageSrc(question.questionId, choice.choiceId, choice.attributes)"
+                          type="button"
+                          class="choice-image-button"
+                          :aria-label="`Открыть изображение варианта ${choice.title || choice.choiceId}`"
+                          @click="openChoiceImagePreview(question.title || 'Без заголовка', choice.title || 'Без подписи', getChoiceImageSrc(question.questionId, choice.choiceId, choice.attributes))"
+                        >
+                          <img
+                            :src="getChoiceImageSrc(question.questionId, choice.choiceId, choice.attributes)"
+                            :alt="`Изображение варианта ${choice.title || choice.choiceId}`"
+                            class="choice-image-thumb"
+                            @error="markChoiceImageMissing(question.questionId, choice.choiceId)"
+                          />
+                        </button>
+                        <span v-else class="choice-radio-circle" />
                         <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
                       </div>
                       <template v-if="question.subQuestions && question.subQuestions.length">
@@ -1246,8 +1377,20 @@ const handleLogoUpload = (file: File | null): void => {
                         :key="qType.type"
                         v-ripple
                         clickable
+                        class="question-type-menu-item"
                         @click="createNewQuestion(qType.type, index + 1)"
                       >
+                        <div
+                          v-if="hasQuestionPreview(qType.type)"
+                          class="question-type-menu-preview"
+                        >
+                          <img
+                            :src="getQuestionPreviewSrc(qType.type)"
+                            :alt="`Превью ${qType.type}`"
+                            class="question-type-menu-preview-image"
+                            @error="markQuestionPreviewMissing(qType.type)"
+                          />
+                        </div>
                         <q-item-section>
                           <q-item-label>{{ qType.typeName }}</q-item-label>
                           <q-item-label caption>{{ qType.type }}</q-item-label>
@@ -1265,6 +1408,32 @@ const handleLogoUpload = (file: File | null): void => {
 
         </div><!-- /q-pa-lg -->
       </div><!-- /col main content -->
+
+      <q-dialog v-model="previewDialogOpen">
+        <q-card class="question-preview-dialog-card">
+          <q-card-section class="row items-center justify-between q-pb-sm">
+            <div class="text-subtitle1 text-weight-medium">
+              {{ previewDialogTitle }}
+            </div>
+            <q-btn
+              flat
+              dense
+              round
+              icon="close"
+              @click="previewDialogOpen = false"
+            />
+          </q-card-section>
+
+          <q-card-section class="q-pt-none">
+            <img
+              v-if="previewDialogImageSrc"
+              :src="previewDialogImageSrc"
+              :alt="previewDialogTitle"
+              class="question-preview-dialog-image"
+            />
+          </q-card-section>
+        </q-card>
+      </q-dialog>
 
     </q-page>
   </AppLayout>
@@ -1497,6 +1666,9 @@ const handleLogoUpload = (file: File | null): void => {
 }
 
 /* ── Themed cards ── */
+.survey-cards-wrapper {
+  padding: 12px;
+}
 .survey-cards-wrapper :deep(.q-card) {
   background: color-mix(in srgb, white 14%, var(--theme-bg, #fff)) !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
@@ -1546,6 +1718,32 @@ const handleLogoUpload = (file: File | null): void => {
   display: inline-block;
 }
 
+.choice-image-button {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.choice-image-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.16);
+}
+
+.choice-image-thumb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  background: #f4f8f2;
+}
+
 .choice-title {
   font-size: 14px;
   color: var(--theme-text, #212121);
@@ -1566,6 +1764,71 @@ const handleLogoUpload = (file: File | null): void => {
   align-items: baseline;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.question-card-side {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.question-preview-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 12px;
+  overflow: hidden;
+  line-height: 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.question-preview-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.question-preview-image {
+  display: block;
+  width: 120px;
+  height: 76px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.question-preview-dialog-card {
+  width: min(92vw, 760px);
+  max-width: 760px;
+  border-radius: 20px;
+}
+
+.question-preview-dialog-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+.question-type-menu-item {
+  align-items: center;
+  gap: 12px;
+}
+
+.question-type-menu-preview {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f4f8f2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.question-type-menu-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .question-number-badge {
@@ -1695,6 +1958,18 @@ const handleLogoUpload = (file: File | null): void => {
 
 .survey-cards-wrapper :deep(.custom-question-card:hover) .drag-handle-icon {
   opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+  .question-card-side {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .question-preview-image {
+    width: 96px;
+    height: 64px;
+  }
 }
 
 /* Drag-and-drop states */
