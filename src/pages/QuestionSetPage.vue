@@ -511,7 +511,7 @@ interface SurveyTheme {
 }
 
 const themes: SurveyTheme[] = [
-  { id: 'default',  name: 'По умолчанию', bg: '#ffffff',  text: '#212121', accent: '#1976d2' },
+  { id: 'default',  name: 'По умолчанию', bg: '#ffffff',  text: '#212121', accent: '#61c13a' },
   { id: 'dark',     name: 'Тёмная',       bg: '#1e1e2e',  text: '#cdd6f4', accent: '#89b4fa' },
   { id: 'ocean',    name: 'Океан',         bg: '#0077b6',  text: '#ffffff', accent: '#90e0ef' },
   { id: 'forest',   name: 'Лес',           bg: '#2d6a4f',  text: '#ffffff', accent: '#95d5b2' },
@@ -526,6 +526,7 @@ const activeTheme = computed(() => themes.find((t) => t.id === activeThemeId.val
 const surveyContentStyle = computed(() => ({
   backgroundColor: activeTheme.value.bg,
   color: activeTheme.value.text,
+  '--theme-bg': activeTheme.value.bg,
   '--theme-text': activeTheme.value.text,
   '--theme-accent': activeTheme.value.accent,
   '--theme-border': `color-mix(in srgb, ${activeTheme.value.text} 25%, transparent)`,
@@ -909,7 +910,7 @@ const handleLogoUpload = (file: File | null): void => {
                 :key="question.questionId"
                 :data-question-id="question.questionId"
                 flat
-                :class="['question-card custom-question-card', { 'question-card--new': newQuestionId === question.questionId }]"
+                :class="['question-card custom-question-card', { 'question-card--new': newQuestionId === question.questionId, 'question-card--editing': isEditing(question.questionId) }]"
               >
                 <q-card-section class="q-pb-sm">
                   <div class="row items-start justify-between no-wrap">
@@ -1451,7 +1452,7 @@ const handleLogoUpload = (file: File | null): void => {
 }
 
 .theme-card--active {
-  border-color: #1976d2 !important;
+  border-color: #61c13a !important;
 }
 
 .theme-preview {
@@ -1497,7 +1498,7 @@ const handleLogoUpload = (file: File | null): void => {
 
 /* ── Themed cards ── */
 .survey-cards-wrapper :deep(.q-card) {
-  background: #fff;
+  background: color-mix(in srgb, white 14%, var(--theme-bg, #fff)) !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
   border-radius: 8px;
   border: none !important;
@@ -1572,7 +1573,7 @@ const handleLogoUpload = (file: File | null): void => {
   font-size: 13px;
   font-weight: 700;
   color: #fff;
-  background: #1976d2;
+  background: #61c13a;
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -1623,6 +1624,11 @@ const handleLogoUpload = (file: File | null): void => {
 /* Стили для карточки и кнопки редактирования */
 .survey-cards-wrapper :deep(.custom-question-card) {
   transition: box-shadow 0.22s, background-color 0.22s;
+}
+
+.survey-cards-wrapper :deep(.custom-question-card.question-card--editing) {
+  outline: 2px solid #61c13a;
+  outline-offset: -2px;
 }
 
 .survey-cards-wrapper :deep(.custom-question-card:hover) {
