@@ -16,7 +16,7 @@ import {
 } from '../data/questionSchemas'
 import { useAuthStore, type RemoteQuestion } from '../stores/auth'
 
-import { reorderQuestions } from '../stores/reorderQuestions'
+import { reorderQuestions, renumberAllQueueCycles } from '../stores/reorderQuestions'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,7 +67,7 @@ const mapRemoteQuestion = (q: RemoteQuestion): SurveyQuestion => {
   return {
     questionId: q.questionId ?? q.id ?? '',
     type: q.type ?? '',
-    queueCycle: q.queueCycle ?? 0,
+    queueCycle: q.queueCycle ?? (q.attributes?.queueCycle as number | undefined) ?? 0,
     title,
     choices,
     subQuestions,
@@ -83,6 +83,7 @@ const loadFromBackend = async (cycleId: string): Promise<void> => {
     const remote = await authStore.getQuestions(cycleId)
     if (remote.length > 0) {
       localQuestions.value = ensureQuestionIds(remote.map(mapRemoteQuestion))
+        .sort((a, b) => a.queueCycle - b.queueCycle)
       return
     }
   } catch (e) {
@@ -329,16 +330,52 @@ const createNewQuestion = async (type: string, insertIndex?: number): Promise<vo
   try {
     const newId = await authStore.createChoiceQuestion(cycleId, type)
     const targetIndex = insertIndex ?? localQuestions.value.length
+
+    // Вычисляем queueCycle до вставки, смотрим на соседей
+    const prevQC = targetIndex > 0 ? localQuestions.value[targetIndex - 1].queueCycle : undefined
+    const nextQC = targetIndex < localQuestions.value.length
+      ? localQuestions.value[targetIndex].queueCycle
+      : undefined
+
+    let newQueueCycle: number
+    let needsFullRenumber = false
+
+    if (prevQC === undefined && nextQC === undefined) {
+      newQueueCycle = 1000
+    } else if (prevQC === undefined) {
+      newQueueCycle = (nextQC as number) - 1000
+    } else if (nextQC === undefined) {
+      newQueueCycle = prevQC + 1000
+    } else if (nextQC - prevQC < 1) {
+      needsFullRenumber = true
+      newQueueCycle = prevQC // временное значение, заменится при перенумерации
+    } else {
+      newQueueCycle = (prevQC + nextQC) / 2
+    }
+
     const newQuestion: SurveyQuestion = {
       questionId: newId,
       type,
       title: '',
-      queueCycle: targetIndex,
+      queueCycle: newQueueCycle,
       choices: [],
       subQuestions: [],
     }
     localQuestions.value.splice(targetIndex, 0, newQuestion)
-    await reorderQuestions(localQuestions.value)
+
+    if (needsFullRenumber) {
+      await renumberAllQueueCycles(
+        localQuestions.value,
+        (qId, qc, existingAttrs, existingLocalizedAttrs) =>
+          authStore.setQuestionQueueCycle(qId, qc, existingAttrs, existingLocalizedAttrs),
+      )
+    } else {
+      await authStore.setQuestionQueueCycle(newId, newQueueCycle)
+    }
+
+    // Сортируем по queueCycle
+    localQuestions.value = [...localQuestions.value].sort((a, b) => a.queueCycle - b.queueCycle)
+
     startEdit(newQuestion)
     newQuestionId.value = newId
     setTimeout(() => {
@@ -450,9 +487,14 @@ const goBack = (): void => {
 }
 
 // Drag-and-drop reorder handler
-async function handleDragEnd(newList: SurveyQuestion[]) {
-  await reorderQuestions(newList)
-  localQuestions.value = [...newList]
+async function handleDragEnd(newList: SurveyQuestion[], evt: { newIndex: number }) {
+  await reorderQuestions(
+    newList,
+    evt.newIndex,
+    (qId, qc, existingAttrs, existingLocalizedAttrs) =>
+      authStore.setQuestionQueueCycle(qId, qc, existingAttrs, existingLocalizedAttrs),
+  )
+  localQuestions.value = [...newList].sort((a, b) => a.queueCycle - b.queueCycle)
 }
 
 // ───────── Sidebar ─────────
@@ -859,7 +901,7 @@ const handleLogoUpload = (file: File | null): void => {
             ghost-class="question-drag-ghost"
             chosen-class="question-drag-chosen"
             drag-class="question-dragging"
-            @end="handleDragEnd(localQuestions)"
+            @end="(evt: { newIndex: number }) => handleDragEnd(localQuestions, evt)"
           >
             <template #item="{ element: question, index }">
               <div class="question-item-wrapper">

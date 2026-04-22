@@ -707,6 +707,24 @@ export const useAuthStore = defineStore('AuthStore', {
       )
     },
 
+    async setQuestionQueueCycle(
+      questionId: string,
+      queueCycle: number,
+      existingAttributes: Record<string, unknown> = {},
+      existingLocalizedAttributes: Record<string, unknown> = {},
+    ): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/set-question-attributes`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({
+          questionId,
+          attributes: { ...existingAttributes, queueCycle },
+          localizedAttributes: existingLocalizedAttributes,
+        } satisfies SetQuestionAttributesPayload),
+      )
+    },
+
     async setChoiceTitle(choiceId: string, title: string): Promise<void> {
       await this.api.request<unknown>(
         `${this.getAdminApiBase()}/admin/happy-survey/set-choice-title`,
