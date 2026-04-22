@@ -347,7 +347,7 @@ const createNewQuestion = async (type: string, insertIndex?: number): Promise<vo
     }, 100)
     setTimeout(() => {
       newQuestionId.value = null
-    }, 1800)
+    }, 4200)
   } catch (e) {
     createError.value = e instanceof Error ? e.message : 'Ошибка создания вопроса'
   } finally {
@@ -812,8 +812,7 @@ const handleLogoUpload = (file: File | null): void => {
 
       <div v-else class="column survey-cards-wrapper" :style="surveyContentStyle">
           <!-- Insert before first question -->
-          <div class="insert-between-row">
-            <div class="insert-between-line" />
+          <div class="insert-between-row" @click="insertMenuBefore = !insertMenuBefore">
             <q-btn
               round
               unelevated
@@ -822,10 +821,12 @@ const handleLogoUpload = (file: File | null): void => {
               class="insert-between-btn"
               :loading="isCreatingQuestion"
               :disable="isCreatingQuestion"
-              @click.stop="insertMenuBefore = true"
+              @click.stop="insertMenuBefore = !insertMenuBefore"
             >
               <i class="fa-solid fa-plus" />
-              <q-menu
+            </q-btn>
+            <q-menu
+                v-if="insertMenuBefore"
                 v-model="insertMenuBefore"
                 no-parent-event
                 anchor="bottom left"
@@ -848,9 +849,7 @@ const handleLogoUpload = (file: File | null): void => {
                     </q-item-section>
                   </q-item>
                 </q-list>
-              </q-menu>
-            </q-btn>
-            <div class="insert-between-line" />
+            </q-menu>
           </div>
 
           <draggable
@@ -1175,7 +1174,7 @@ const handleLogoUpload = (file: File | null): void => {
                 </template>
               </q-card>
               <!-- Insert after this question -->
-              <div class="insert-between-row">
+              <div class="insert-between-row" @click="insertMenuAfter = question.questionId">
                 <div class="insert-between-line" />
                 <q-btn
                   round
@@ -1550,13 +1549,21 @@ const handleLogoUpload = (file: File | null): void => {
   gap: 8px;
   height: 40px;
   padding: 0 4px;
-  opacity: 0;
   transition: opacity 0.18s;
+  border: 1px solid #ccc;
+  justify-content: center;
 }
 
 .insert-between-row:hover,
 .insert-between-row:focus-within {
   opacity: 1;
+}
+
+.insert-between-row .q-list {
+  border-radius: 8px;
+  background-color: #fff;
+  position: absolute;
+  z-index: 1;
 }
 
 .insert-between-line {
@@ -1612,14 +1619,15 @@ const handleLogoUpload = (file: File | null): void => {
 
 /* Pulse animation for newly inserted question */
 @keyframes question-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(97, 193, 58, 0.7); }
-  40%  { box-shadow: 0 0 0 10px rgba(97, 193, 58, 0.2); }
-  70%  { box-shadow: 0 0 0 18px rgba(97, 193, 58, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(97, 193, 58, 0); }
+  0%   { outline-color: rgba(97, 193, 58, 1); }
+  50%  { outline-color: rgba(97, 193, 58, 0.05); }
+  100% { outline-color: rgba(97, 193, 58, 1); }
 }
 
 .survey-cards-wrapper :deep(.question-card--new) {
-  animation: question-pulse 0.7s ease-out 2;
+  animation: question-pulse 1s ease-in-out 4 !important;
+  outline: 3px solid rgba(97, 193, 58, 1);
+  outline-offset: -3px;
   border-radius: 8px;
 }
 
