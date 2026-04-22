@@ -934,14 +934,14 @@ const handleLogoUpload = (file: File | null): void => {
                         </template>
                       </template>
 
-                      <div v-else class="text-subtitle1 text-weight-medium">
-                        {{ index + 1 }}. {{ question.title }}
+                      <div v-else class="question-view-title">
+                        <span class="question-number-badge">{{ index + 1 }}</span>
+                        <span class="question-title-text">{{ question.title || 'Без заголовка' }}</span>
                         <q-badge
                           v-if="question.type"
-                          color="grey-4"
-                          text-color="grey-8"
-                          class="q-ml-sm"
-                          style="font-size: 10px"
+                          color="blue-grey-2"
+                          text-color="blue-grey-8"
+                          class="q-ml-sm question-type-badge"
                         >{{ question.type }}</q-badge>
                       </div>
                     </div>
@@ -1113,6 +1113,7 @@ const handleLogoUpload = (file: File | null): void => {
                         :key="choice.choiceId"
                         class="choice-row"
                       >
+                        <span class="choice-radio-circle" />
                         <span class="choice-title">{{ choice.title || 'Без подписи' }}</span>
                       </div>
                       <template v-if="question.subQuestions && question.subQuestions.length">
@@ -1454,13 +1455,14 @@ const handleLogoUpload = (file: File | null): void => {
 
 /* ── Themed cards ── */
 .survey-cards-wrapper :deep(.q-card) {
-  background: transparent;
-  box-shadow: none;
-  border-color: var(--theme-border) !important;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  border: none !important;
 }
 
 .survey-cards-wrapper :deep(.q-separator) {
-  background: var(--theme-border) !important;
+  background: rgba(0,0,0,0.08) !important;
 }
 
 /* Перебиваем серые классы Quasar внутри темы */
@@ -1481,22 +1483,29 @@ const handleLogoUpload = (file: File | null): void => {
 .choice-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 7px 4px;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+
+.choice-row:hover {
+  background: rgba(0,0,0,0.03);
+}
+
+.choice-radio-circle {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #9e9e9e;
+  background: #fff;
+  display: inline-block;
 }
 
 .choice-title {
   font-size: 14px;
-  color: var(--theme-text, inherit);
-}
-
-.choice-mark {
-  min-width: 28px;
-  text-align: center;
-  font-weight: 700;
-  color: var(--theme-accent, #1976d2);
+  color: var(--theme-text, #212121);
 }
 
 .subquestion-row {
@@ -1506,6 +1515,43 @@ const handleLogoUpload = (file: File | null): void => {
   color: var(--theme-text, #616161);
   padding: 4px 6px;
   opacity: 0.85;
+}
+
+/* ── Question view title ── */
+.question-view-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.question-number-badge {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: #1976d2;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.question-title-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text, #212121);
+  line-height: 1.4;
+}
+
+.question-type-badge {
+  font-size: 10px !important;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  align-self: center;
 }
 
 /* ── Schema fields ── */
@@ -1534,11 +1580,12 @@ const handleLogoUpload = (file: File | null): void => {
 
 /* Стили для карточки и кнопки редактирования */
 .survey-cards-wrapper :deep(.custom-question-card) {
-  transition: background-color 0.22s;
+  transition: box-shadow 0.22s, background-color 0.22s;
 }
 
 .survey-cards-wrapper :deep(.custom-question-card:hover) {
-  background-color: color-mix(in srgb, var(--theme-accent, #1976d2) 15%, transparent);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06);
+  background-color: color-mix(in srgb, var(--theme-text, #212121) 12%, var(--theme-bg, #fff)) !important;
 }
 
 /* Вставка вопроса между карточками */
@@ -1552,8 +1599,8 @@ const handleLogoUpload = (file: File | null): void => {
   gap: 8px;
   height: 40px;
   padding: 0 4px;
+  opacity: 0;
   transition: opacity 0.18s;
-  border: 1px solid #ccc;
   justify-content: center;
 }
 
