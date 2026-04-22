@@ -6,7 +6,6 @@ import AppLayout from '../layouts/AppLayout.vue'
 import SchemaField from '../components/SchemaField.vue'
 import {
   getQuestionTypeConfig,
-  getQuestionsByType,
   type SurveyQuestion,
   type SubQuestion,
   SURVEY_QUESTION_TYPES,
@@ -91,11 +90,8 @@ const loadFromBackend = async (cycleId: string): Promise<void> => {
   } finally {
     isLoadingQuestions.value = false
   }
-  // Fallback to local data if backend returned nothing
-  localQuestions.value = ensureQuestionIds(getQuestionsByType(selectedTypeId.value).map((q) => ({
-    ...q,
-    choices: q.choices.map((c) => ({ ...c })),
-  })))
+  // Fallback to empty list if backend returned nothing
+  localQuestions.value = []
 }
 
 onMounted(async () => {
@@ -103,10 +99,7 @@ onMounted(async () => {
   if (cycleId) {
     await loadFromBackend(cycleId)
   } else {
-    localQuestions.value = ensureQuestionIds(getQuestionsByType(selectedTypeId.value).map((q) => ({
-      ...q,
-      choices: q.choices.map((c) => ({ ...c })),
-    })))
+    localQuestions.value = []
   }
 })
 

@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../layouts/AppLayout.vue'
-import { getQuestionsByType, TEMPLATE_CYCLE_ID } from '../data/questionSets'
+import { getTemplateCycleId } from '../data/questionSets'
 import CookieRepository from '../services/Repositories/CookieRepository'
 import { useAuthStore } from '../stores/auth'
 
@@ -197,7 +197,7 @@ const waitForQuestions = async (cycleId: string): Promise<void> => {
   while (true) {
     const remoteQuestions = await authStore.getQuestions(cycleId)
 
-    if (remoteQuestions.length > 0) {
+    if (remoteQuestions.length > 0 && (remoteQuestions[0].choices?.length ?? 0) > 0) {
       return
     }
 
@@ -234,13 +234,6 @@ const openTemplateSurvey = async (typeId: string): Promise<void> => {
   errorMessage.value = ''
   isLoading.value = true
 
-  const questions = getQuestionsByType(typeId)
-  if (questions.length === 0) {
-    isLoading.value = false
-    await router.push({ name: 'question-set', query: { type: typeId } })
-    return
-  }
-
   try {
     await authStore.launchCustomStudy()
 
@@ -250,9 +243,70 @@ const openTemplateSurvey = async (typeId: string): Promise<void> => {
     }
 
     await authStore.copyQuestions(
-      TEMPLATE_CYCLE_ID,
+      getTemplateCycleId(typeId),
       cycleId,
-      questions.map((question) => question.questionId),
+      [
+        "1f13ca86-5338-66ae-a877-0a00ac070060",
+        "1f13ca86-541b-64b8-907a-0a00ac070060",
+        "1f13ca86-54f8-6ed0-92c8-0a00ac070060",
+        "1f13ca86-55f4-6078-9e55-0a00ac070060",
+        "1f13ca86-56e1-6cec-b27d-0a00ac070060",
+        "1f13ca86-5806-6992-92ca-0a00ac070060",
+        "1f13ca86-5886-616a-ace0-0a00ac070060",
+        "1f13ca86-5965-68e2-8880-0a00ac070060",
+        "1f13ca86-59e0-6ace-9f9e-0a00ac070060",
+        "1f13ca86-5a6a-679c-aaf8-0a00ac070060",
+        "1f13ca86-5b7e-6cb4-9c02-0a00ac070060",
+        "1f13ca86-5c79-6a9c-8e75-0a00ac070060",
+        "1f13ca86-5d70-6ac2-9721-0a00ac070060",
+        "1f13ca86-5ddd-6e38-abdc-0a00ac070060",
+        "1f13ca86-5f04-6096-b4bb-0a00ac070060",
+        "1f13ca86-5f8c-6590-ad98-0a00ac070060",
+        "1f13ca86-6060-6cbe-90a1-0a00ac070060",
+        "1f13ca86-60fd-635c-89ab-0a00ac070060",
+        "1f13ca86-61fa-66ba-bf76-0a00ac070060",
+        "1f13ca86-6284-6ffe-a3dc-0a00ac070060",
+        "1f13ca86-635b-6df6-b835-0a00ac070060",
+        "1f13ca86-63b9-6afa-ad88-0a00ac070060",
+        "1f13ca86-6492-6c4c-871b-0a00ac070060",
+        "1f13ca86-6562-6eba-afcd-0a00ac070060",
+        "1f13ca86-65e7-637c-99f5-0a00ac070060",
+        "1f13ca86-66a9-6030-a21d-0a00ac070060",
+        "1f13ca86-6777-6ed0-9423-0a00ac070060",
+        "1f13ca86-6873-67e4-8d59-0a00ac070060",
+        "1f13ca86-68db-63a8-b6b7-0a00ac070060",
+        "1f13ca86-6942-6846-9218-0a00ac070060",
+        "1f13ca86-69ae-6a1e-a381-0a00ac070060",
+        "1f13ca86-6a0b-60c0-ad30-0a00ac070060",
+        "1f13ca86-6afd-6b04-ad4f-0a00ac070060",
+        "1f13ca86-6bd2-64ee-b1f8-0a00ac070060",
+        "1f13ca86-6cb3-623c-9190-0a00ac070060",
+        "1f13ca86-6d3b-689e-9d96-0a00ac070060",
+        "1f13ca86-6d9d-60bc-aee6-0a00ac070060",
+        "1f13ca86-6e27-69c4-8597-0a00ac070060",
+        "1f13ca86-6efc-6b4c-8557-0a00ac070060",
+        "1f13ca86-6f8e-67a4-9f95-0a00ac070060",
+        "1f13ca86-6ff5-6c06-a8af-0a00ac070060",
+        "1f13ca86-705b-6e3e-958b-0a00ac070060",
+        "1f13ca86-7111-6dce-a963-0a00ac070060",
+        "1f13ca86-71d3-68ac-83aa-0a00ac070060",
+        "1f13ca86-7246-624e-8b84-0a00ac070060",
+        "1f13ca86-72ad-6f20-b85f-0a00ac070060",
+        "1f13ca86-730a-62ac-afe3-0a00ac070060",
+        "1f13ca86-7410-693a-a2f3-0a00ac070060",
+        "1f13ca86-74a0-61e8-9d93-0a00ac070060",
+        "1f13ca86-7521-69be-bf5a-0a00ac070060",
+        "1f13ca86-75f7-6802-9b0f-0a00ac070060",
+        "1f13ca86-767f-6072-b791-0a00ac070060",
+        "1f13ca86-7739-6544-9200-0a00ac070060",
+        "1f13ca86-778f-68ae-aff2-0a00ac070060",
+        "1f13ca86-77eb-6d2a-b7ef-0a00ac070060",
+        "1f13ca86-78aa-6752-ab94-0a00ac070060",
+        "1f13ca86-7978-658a-8e61-0a00ac070060",
+        "1f13ca86-79ab-6926-9fe4-0a00ac070060",
+        "1f13ca86-79fe-64d2-bed9-0a00ac070060",
+        "1f13ca86-7b27-6f7a-89fb-0a00ac070060"
+      ],
     )
 
     await waitForQuestions(cycleId)
@@ -319,11 +373,11 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
   <AppLayout>
     <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
       <div
-        class="text-h2 text-center fade-in-css"
+        class="text-h3 text-center fade-in-css"
         style="margin-bottom: 50px; margin-top: 100px;"
         v-if="!isLoading"
       >
-        Для какой цели вы хотите использовать конструктор?
+        Для какой цели вы хотите использовать конструктор опросов?
         <!-- <span
           v-for="word in splitTextIntoWords('Для какой цели вы хотите использовать конструктор?')"
           :key="word.wordIndex"
@@ -350,7 +404,7 @@ const openSurveyCard = async (card: SurveyCard): Promise<void> => {
         </div>
       </div>
 
-      <div v-if="!isLoading && showCards" class="survey-sections full-width">
+      <div v-if="!isLoading" class="survey-sections full-width">
         <div
           v-for="category in surveyCardCategories"
           :key="category.id"
