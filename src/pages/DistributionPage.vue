@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -79,7 +79,6 @@ const loadLinks = async (): Promise<void> => {
       await authStore.linkQuestionsToSurvey(surveyId, questionIds)
     }
     links.value = await authStore.getGeneralLinks(surveyId, cycleId)
-    await renderQrCodes()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : 'Ошибка загрузки ссылок'
   } finally {
@@ -100,7 +99,6 @@ const createLink = async (): Promise<void> => {
   try {
     await authStore.createGeneralLink(surveyId)
     links.value = await authStore.getGeneralLinks(surveyId, cycleId)
-    await renderQrCodes()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : 'Ошибка создания ссылки'
   } finally {
@@ -128,6 +126,12 @@ const setCanvasRef = (el: unknown, id: string): void => {
     qrCanvases.value[id] = el
   }
 }
+
+watch(links, async () => {
+  await nextTick()
+  await nextTick()
+  await renderQrCodes()
+})
 
 onMounted(loadLinks)
 
