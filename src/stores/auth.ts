@@ -345,6 +345,14 @@ export const useAuthStore = defineStore('AuthStore', {
     surveyId: (state): string => state.currentSurveyId.value ?? '',
   },
   actions: {
+    async linkQuestionsToSurvey(surveyId: string, questionIds: string[]): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/happy-survey/link-questions-to-survey`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ surveyId, questionIds }),
+      )
+    },
     setCompanyName(companyName: string): void {
       this.currentCompanyName.value = companyName.trim() || null
     },

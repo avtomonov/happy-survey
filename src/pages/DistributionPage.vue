@@ -70,6 +70,12 @@ const loadLinks = async (): Promise<void> => {
   isLoading.value = true
   errorMessage.value = ''
   try {
+    // Получаем все вопросы для текущего цикла
+    const questions = await authStore.getQuestions(cycleId)
+    const questionIds = questions.map(q => q.questionId ?? q.id).filter(Boolean)
+    if (questionIds.length > 0) {
+      await authStore.linkQuestionsToSurvey(surveyId, questionIds)
+    }
     links.value = await authStore.getGeneralLinks(surveyId, cycleId)
     await renderQrCodes()
   } catch (e) {
