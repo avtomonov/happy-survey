@@ -38,7 +38,7 @@ body,
 .q-field--focused .q-field__suffix,
 .q-field--focused .q-field__input {
 	caret-color: #61c13a;
-	color: inherit;
+	color: #1a1a1a !important;
 }
 
 .q-field--standard.q-field--focused .q-field__control::after,

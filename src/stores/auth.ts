@@ -310,6 +310,7 @@ export interface RemoteSurvey {
   id?: string
   surveyId?: string
   title?: string
+  finishTime?: string
   localizedAttributes?: Record<string, any>
 }
 
@@ -854,6 +855,15 @@ export const useAuthStore = defineStore('AuthStore', {
         } satisfies CreateGeneralLinkPayload),
       )
       return result.body
+    },
+
+    async changeSurveyFinishTime(surveyId: string, finishTime: string): Promise<void> {
+      await this.api.request<unknown>(
+        `${this.getAdminApiBase()}/admin/change-survey-finish-time`,
+        'POST',
+        this.getStudyAuthHeaders(),
+        JSON.stringify({ surveyId, finishTime }),
+      )
     },
 
     async getGeneralLinks(surveyId: string, cycleId: string): Promise<RemoteGeneralLink[]> {

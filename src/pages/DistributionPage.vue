@@ -133,7 +133,67 @@ watch(links, async () => {
   await renderQrCodes()
 })
 
-onMounted(loadLinks)
+// --- Дата окончания опроса ---
+const surveyFinishTime = ref<string>('')
+const finishTimeEdit = ref<string>('')
+const isSavingFinishTime = ref(false)
+const finishTimeSaved = ref(false)
+const finishTimeError = ref('')
+
+const formatLocalDatetime = (iso: string): string => {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } catch { return '' }
+}
+
+const formatDisplayDate = (iso: string): string => {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('ru-RU', {
+      day: '2-digit', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+  } catch { return iso }
+}
+
+const loadFinishTime = async (): Promise<void> => {
+  const cycleId = authStore.cycleId
+  if (!cycleId) return
+  try {
+    const surveys = await authStore.getSurveys(cycleId)
+    const ft = surveys[0]?.finishTime ?? ''
+    surveyFinishTime.value = ft
+    finishTimeEdit.value = formatLocalDatetime(ft)
+  } catch { /* ignore */ }
+}
+
+const saveFinishTime = async (): Promise<void> => {
+  const surveyId = await ensureSurveyId()
+  if (!surveyId) { finishTimeError.value = 'Не найден surveyId'; return }
+  if (!finishTimeEdit.value) { finishTimeError.value = 'Укажите дату'; return }
+  isSavingFinishTime.value = true
+  finishTimeError.value = ''
+  finishTimeSaved.value = false
+  try {
+    const isoDate = new Date(finishTimeEdit.value).toISOString()
+    await authStore.changeSurveyFinishTime(surveyId, isoDate)
+    surveyFinishTime.value = isoDate
+    finishTimeSaved.value = true
+    setTimeout(() => { finishTimeSaved.value = false }, 3000)
+  } catch (e) {
+    finishTimeError.value = e instanceof Error ? e.message : 'Ошибка сохранения'
+  } finally {
+    isSavingFinishTime.value = false
+  }
+}
+
+onMounted(() => {
+  loadLinks()
+  loadFinishTime()
+})
 
 const emailsInput = ref('')
 const emailSubject = ref('Приглашение пройти опрос')
@@ -152,6 +212,51 @@ const emailBody = ref(`<p>Здравствуйте!</p><p>Приглашаем �
           @click="router.back()"
         />
       </div>
+
+      <!-- Дата окончания опроса -->
+      <q-card flat bordered class="finish-time-card q-mb-xl">
+        <q-card-section class="finish-time-inner">
+          <div class="finish-time-left">
+            <div class="finish-time-icon-wrap">
+              <q-icon name="event" size="28px" color="primary" />
+            </div>
+            <div>
+              <div class="text-caption text-grey-6 q-mb-xs" style="text-transform:uppercase;letter-spacing:.05em;font-size:11px">Дата окончания опроса</div>
+              <div class="finish-time-display text-body1 text-weight-medium">
+                {{ formatDisplayDate(surveyFinishTime) }}
+              </div>
+            </div>
+          </div>
+          <div class="finish-time-right">
+            <q-input
+              v-model="finishTimeEdit"
+              type="datetime-local"
+              dense
+              outlined
+              class="finish-time-input"
+              :error="!!finishTimeError"
+              :error-message="finishTimeError"
+              hide-bottom-space
+            />
+            <q-btn
+              label="Сохранить"
+              color="primary"
+              unelevated
+              :loading="isSavingFinishTime"
+              :disable="isSavingFinishTime"
+              class="finish-time-btn"
+              @click="saveFinishTime"
+            />
+            <transition name="fade">
+              <div v-if="finishTimeSaved" class="finish-time-saved">
+                <q-icon name="check_circle" color="positive" size="18px" />
+                Сохранено
+              </div>
+            </transition>
+          </div>
+        </q-card-section>
+      </q-card>
+
 
       <div class="column q-gutter-md q-mb-lg">
         <div class="text-h5">Распространение анкеты</div>
@@ -436,4 +541,69 @@ const emailBody = ref(`<p>Здравствуйте!</p><p>Приглашаем �
     margin: 0 0 10px;
   }
 }
+
+/* --- finish time card --- */
+.finish-time-card {
+  border-radius: 14px;
+  background: linear-gradient(100deg, #f9fffe 0%, #f0faf4 100%);
+  border: 1.5px solid #d4eedb;
+}
+
+.finish-time-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.finish-time-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.finish-time-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #e8f7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.finish-time-display {
+  color: #1a1a1a;
+  font-size: 16px;
+}
+
+.finish-time-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.finish-time-input {
+  min-width: 220px;
+}
+
+.finish-time-btn {
+  border-radius: 8px;
+  min-height: 40px;
+}
+
+.finish-time-saved {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity .3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
