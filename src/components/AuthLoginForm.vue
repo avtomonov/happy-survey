@@ -314,14 +314,14 @@ const onLogin = async (): Promise<void> => {
     &::after {
       content: '';
       position: absolute;
-      left: 3px;
-      top: 0px;
+      left: 50%;
+      top: 50%;
       width: 5px;
-      height: 10px;
+      height: 9px;
       border: 2px solid #fff;
       border-top: none;
       border-left: none;
-      transform: rotate(45deg);
+      transform: translate(-50%, -60%) rotate(45deg);
     }
   }
 
