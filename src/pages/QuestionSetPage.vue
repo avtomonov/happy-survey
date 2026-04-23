@@ -303,13 +303,13 @@ const startEdit = (question: SurveyQuestion): void => {
       },
     })),
     subQuestions: (question.subQuestions ?? []).map((s) => ({
-      subQuestionId: s.subQuestionId,
-      title: s.title,
-      attributes: {
-        ...getSchemaDefaults(schema?.subQuestionAttributeFields),
-        ...(s.attributes ?? {}),
-      },
-    })),
+        subQuestionId: s.subQuestionId,
+        title: s.title,
+        attributes: {
+          ...getSchemaDefaults(schema?.subQuestionAttributeFields),
+          ...(s.attributes ?? {}),
+        },
+      })),
     localizedAttributes: {
       ...getSchemaDefaults(schema?.localizedAttributes),
       ...(question.localizedAttributes ?? {}),
@@ -318,6 +318,7 @@ const startEdit = (question: SurveyQuestion): void => {
       ...getSchemaDefaults(schema?.attributes),
       ...(question.attributes ?? {}),
     },
+    editTab: 'edit', // Всегда первый таб по умолчанию
   }
   delete errorMap.value[question.questionId]
 }
@@ -1275,16 +1276,16 @@ const openChoiceImagePreview = (
                           </div>
                         </div>
                         <!-- Заголовок -->
-                        <q-input
+                        <!-- <q-input
                           v-model="editingDrafts[question.questionId].title"
                           dense
                           outlined
                           autogrow
                           label="Заголовок вопроса"
-                        />
+                        /> -->
 
                         <!-- ── Настройки: localizedAttributes ── -->
-                        <template v-if="getActiveSchema(question.questionId)?.localizedAttributes">
+                        <!-- <template v-if="getActiveSchema(question.questionId)?.localizedAttributes">
                           <q-separator class="q-my-sm" />
                           <div class="schema-section-title">Локализованные настройки</div>
                           <template
@@ -1299,10 +1300,10 @@ const openChoiceImagePreview = (
                               @update:model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey] = $event"
                             />
                           </template>
-                        </template>
+                        </template> -->
 
                         <!-- ── Настройки: attributes ── -->
-                        <template v-if="getActiveSchema(question.questionId)?.attributes">
+                        <!-- <template v-if="getActiveSchema(question.questionId)?.attributes">
                           <q-separator class="q-my-sm" />
                           <div class="schema-section-title">Настройки вопроса</div>
                           <template
@@ -1316,7 +1317,7 @@ const openChoiceImagePreview = (
                               @update:model-value="editingDrafts[question.questionId].attributes[fieldKey] = $event"
                             />
                           </template>
-                        </template>
+                        </template> -->
                       </template>
 
                       <div v-else class="question-view-title">
@@ -1330,7 +1331,7 @@ const openChoiceImagePreview = (
                         >{{ question.type }}</q-badge>
                       </div>
                     </div>
-                    <div class="row items-start no-wrap q-ml-sm question-card-side">
+                    <div class="question-card-side-absolute question-card-side">
                       <button
                         v-if="!isEditing(question.questionId) && hasQuestionPreview(question.type)"
                         type="button"
@@ -1361,153 +1362,230 @@ const openChoiceImagePreview = (
                 <q-card-section class="q-pt-sm">
                   <div class="column q-gutter-xs">
                     <!-- ── Edit mode ── -->
-                    <template v-if="isEditing(question.questionId)">
-
-                      <!-- Choices -->
-                      <template v-if="draftHasChoices(question.questionId)">
-                        <q-separator class="q-my-xs" />
-                        <div class="schema-section-title">
-                          {{ getActiveSchema(question.questionId)?.choicesTitle ?? 'Варианты ответов' }}
-                        </div>
-                        <div
-                          v-for="(choice, idx) in editingDrafts[question.questionId].choices"
-                          :key="choice.choiceId"
-                          class="choice-edit-block q-mb-sm"
+                      <template v-if="isEditing(question.questionId)">
+                        <q-tabs
+                          v-model="editingDrafts[question.questionId].editTab"
+                          dense
+                          class="q-mb-md"
+                          active-color="primary"
+                          indicator-color="primary"
+                          align="left"
                         >
-                          <div class="row items-center q-gutter-sm q-mb-xs">
-                            <!-- title field -->
+                          <q-tab name="edit" label="Вопрос" />
+                          <q-tab name="options" label="Варианты" />
+                          <q-tab name="logic" label="Логика" />
+                          <q-tab name="move" label="Переместить" />
+                          <q-tab name="copy" label="Копировать" />
+                        </q-tabs>
+                        <q-tab-panels
+                          v-model="editingDrafts[question.questionId].editTab"
+                          animated
+                          class="q-mb-md"
+                        >
+                          <q-tab-panel name="edit">
+                            <!-- Заголовок -->
                             <q-input
-                              v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'title' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
-                              v-model="editingDrafts[question.questionId].choices[idx].title"
+                              v-model="editingDrafts[question.questionId].title"
                               dense
                               outlined
-                              :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.title?.caption ?? 'Текст варианта'"
-                              class="col"
+                              autogrow
+                              label="Заголовок вопроса"
                             />
-                            <!-- mark field -->
-                            <q-input
-                              v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'mark' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
-                              v-model.number="editingDrafts[question.questionId].choices[idx].mark"
-                              dense
-                              outlined
-                              type="number"
-                              :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.mark?.caption ?? 'Балл'"
-                              style="max-width: 90px"
-                            />
-                            <!-- filterId field (filters type) -->
-                            <q-input
-                              v-if="getActiveSchema(question.questionId)?.choiceSchemaFields?.filterId"
-                              v-model="editingDrafts[question.questionId].choices[idx].filterId"
-                              dense
-                              outlined
-                              label="ID фильтра"
-                              class="col"
-                            />
-                            <q-btn
-                              flat
-                              dense
-                              round
-                              icon="delete"
-                              color="negative"
-                              size="sm"
-                              :disable="isSaving(question.questionId)"
-                              @click="removeDraftChoice(question.questionId, idx)"
-                            />
-                          </div>
-                          <!-- Choice attributes from schema -->
-                          <div
-                            v-if="getActiveSchema(question.questionId)?.choiceAttributeFields"
-                            class="choice-attrs-block"
-                          >
-                            <template
-                              v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.choiceAttributeFields"
-                              :key="`ca-${fieldKey}`"
-                            >
-                              <schema-field
-                                v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
-                                :field-def="fieldDef"
-                                :model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey]"
-                                class="q-mb-xs"
-                                @update:model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey] = $event"
+
+                            <!-- ── Настройки: localizedAttributes ── -->
+                            <template v-if="getActiveSchema(question.questionId)?.localizedAttributes">
+                              <q-separator class="q-my-sm" />
+                              <!-- <div class="schema-section-title">Локализованные настройки</div> -->
+                              <template
+                                v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.localizedAttributes"
+                                :key="`la-${fieldKey}`"
+                              >
+                                <schema-field
+                                  v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
+                                  :field-def="fieldDef"
+                                  :model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey]"
+                                  class="q-mb-xs"
+                                  @update:model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey] = $event"
+                                />
+                              </template>
+                            </template>
+
+                            <!-- Настройки вопроса теперь в табе 'Логика' -->
+                          </q-tab-panel>
+                          <q-tab-panel name="options">
+                            <!-- Варианты ответов -->
+                            <template v-if="draftHasChoices(question.questionId)">
+                              <q-separator class="q-my-xs" />
+                              <div class="schema-section-title">
+                                {{ getActiveSchema(question.questionId)?.choicesTitle ?? 'Варианты ответов' }}
+                              </div>
+                              <div
+                                v-for="(choice, idx) in editingDrafts[question.questionId].choices"
+                                :key="choice.choiceId"
+                                class="choice-edit-block q-mb-sm"
+                              >
+                                <div class="row items-center q-gutter-sm q-mb-xs">
+                                  <!-- title field -->
+                                  <q-input
+                                    v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'title' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
+                                    v-model="editingDrafts[question.questionId].choices[idx].title"
+                                    dense
+                                    outlined
+                                    :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.title?.caption ?? 'Текст варианта'"
+                                    class="col"
+                                  />
+                                  <!-- mark field -->
+                                  <q-input
+                                    v-if="!getActiveSchema(question.questionId)?.choiceSchemaFields || 'mark' in (getActiveSchema(question.questionId)?.choiceSchemaFields ?? {})"
+                                    v-model.number="editingDrafts[question.questionId].choices[idx].mark"
+                                    dense
+                                    outlined
+                                    type="number"
+                                    :label="getActiveSchema(question.questionId)?.choiceSchemaFields?.mark?.caption ?? 'Балл'"
+                                    style="max-width: 90px"
+                                  />
+                                  <!-- filterId field (filters type) -->
+                                  <q-input
+                                    v-if="getActiveSchema(question.questionId)?.choiceSchemaFields?.filterId"
+                                    v-model="editingDrafts[question.questionId].choices[idx].filterId"
+                                    dense
+                                    outlined
+                                    label="ID фильтра"
+                                    class="col"
+                                  />
+                                  <q-btn
+                                    flat
+                                    dense
+                                    round
+                                    icon="delete"
+                                    color="negative"
+                                    size="sm"
+                                    :disable="isSaving(question.questionId)"
+                                    @click="removeDraftChoice(question.questionId, idx)"
+                                  />
+                                </div>
+                                <!-- Choice attributes from schema -->
+                                <div
+                                  v-if="getActiveSchema(question.questionId)?.choiceAttributeFields"
+                                  class="choice-attrs-block"
+                                >
+                                  <template
+                                    v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.choiceAttributeFields"
+                                    :key="`ca-${fieldKey}`"
+                                  >
+                                    <schema-field
+                                      v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
+                                      :field-def="fieldDef"
+                                      :model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey]"
+                                      class="q-mb-xs"
+                                      @update:model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey] = $event"
+                                    />
+                                  </template>
+                                </div>
+                              </div>
+                              <q-btn
+                                flat
+                                dense
+                                size="sm"
+                                icon="add"
+                                label="Добавить вариант"
+                                color="primary"
+                                class="q-mt-xs"
+                                :disable="isSaving(question.questionId)"
+                                @click="addDraftChoice(question.questionId)"
                               />
                             </template>
-                          </div>
-                        </div>
-                        <q-btn
-                          flat
-                          dense
-                          size="sm"
-                          icon="add"
-                          label="Добавить вариант"
-                          color="primary"
-                          class="q-mt-xs"
-                          :disable="isSaving(question.questionId)"
-                          @click="addDraftChoice(question.questionId)"
-                        />
-                      </template>
 
-                      <!-- SubQuestions (complex) -->
-                      <template v-if="draftHasSubQuestions(question.questionId)">
-                        <q-separator class="q-my-sm" />
-                        <div class="schema-section-title">
-                          {{ getActiveSchema(question.questionId)?.subQuestionsTitle ?? 'Подвопросы' }}
-                        </div>
-                        <div
-                          v-for="(subQ, idx) in editingDrafts[question.questionId].subQuestions"
-                          :key="subQ.subQuestionId || idx"
-                          class="choice-edit-block q-mb-sm"
-                        >
-                          <div class="row items-center q-gutter-sm q-mb-xs">
-                            <q-input
-                              v-model="editingDrafts[question.questionId].subQuestions[idx].title"
-                              dense
-                              outlined
-                              label="Текст подвопроса"
-                              class="col"
-                            />
-                            <q-btn
-                              flat
-                              dense
-                              round
-                              icon="delete"
-                              color="negative"
-                              size="sm"
-                              :disable="isSaving(question.questionId)"
-                              @click="removeDraftSubQuestion(question.questionId, idx)"
-                            />
-                          </div>
-                          <!-- SubQuestion attributes -->
-                          <div
-                            v-if="getActiveSchema(question.questionId)?.subQuestionAttributeFields"
-                            class="choice-attrs-block"
-                          >
-                            <template
-                              v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.subQuestionAttributeFields"
-                              :key="`sqa-${fieldKey}`"
-                            >
-                              <schema-field
-                                v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
-                                :field-def="fieldDef"
-                                :model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey]"
-                                class="q-mb-xs"
-                                @update:model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey] = $event"
+                            <!-- SubQuestions (complex) -->
+                            <template v-if="draftHasSubQuestions(question.questionId)">
+                              <q-separator class="q-my-sm" />
+                              <div class="schema-section-title">
+                                {{ getActiveSchema(question.questionId)?.subQuestionsTitle ?? 'Подвопросы' }}
+                              </div>
+                              <div
+                                v-for="(subQ, idx) in editingDrafts[question.questionId].subQuestions"
+                                :key="subQ.subQuestionId || idx"
+                                class="choice-edit-block q-mb-sm"
+                              >
+                                <div class="row items-center q-gutter-sm q-mb-xs">
+                                  <q-input
+                                    v-model="editingDrafts[question.questionId].subQuestions[idx].title"
+                                    dense
+                                    outlined
+                                    label="Текст подвопроса"
+                                    class="col"
+                                  />
+                                  <q-btn
+                                    flat
+                                    dense
+                                    round
+                                    icon="delete"
+                                    color="negative"
+                                    size="sm"
+                                    :disable="isSaving(question.questionId)"
+                                    @click="removeDraftSubQuestion(question.questionId, idx)"
+                                  />
+                                </div>
+                                <!-- SubQuestion attributes -->
+                                <div
+                                  v-if="getActiveSchema(question.questionId)?.subQuestionAttributeFields"
+                                  class="choice-attrs-block"
+                                >
+                                  <template
+                                    v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.subQuestionAttributeFields"
+                                    :key="`sqa-${fieldKey}`"
+                                  >
+                                    <schema-field
+                                      v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
+                                      :field-def="fieldDef"
+                                      :model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey]"
+                                      class="q-mb-xs"
+                                      @update:model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey] = $event"
+                                    />
+                                  </template>
+                                </div>
+                              </div>
+                              <q-btn
+                                flat
+                                dense
+                                size="sm"
+                                icon="add"
+                                label="Добавить подвопрос"
+                                color="primary"
+                                class="q-mt-xs"
+                                :disable="isSaving(question.questionId)"
+                                @click="addDraftSubQuestion(question.questionId)"
                               />
                             </template>
-                          </div>
-                        </div>
-                        <q-btn
-                          flat
-                          dense
-                          size="sm"
-                          icon="add"
-                          label="Добавить подвопрос"
-                          color="primary"
-                          class="q-mt-xs"
-                          :disable="isSaving(question.questionId)"
-                          @click="addDraftSubQuestion(question.questionId)"
-                        />
+                          </q-tab-panel>
+                          <q-tab-panel name="options">
+                            <div>Options</div>
+                          </q-tab-panel>
+                          <q-tab-panel name="logic">
+                            <div class="schema-section-title">Настройки вопроса</div>
+                            <template v-if="getActiveSchema(question.questionId)?.attributes">
+                              <q-separator class="q-my-sm" />
+                              <template
+                                v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.attributes"
+                                :key="`a-${fieldKey}`"
+                              >
+                                <schema-field
+                                  :field-def="fieldDef"
+                                  :model-value="editingDrafts[question.questionId].attributes[fieldKey]"
+                                  class="q-mb-xs"
+                                  @update:model-value="editingDrafts[question.questionId].attributes[fieldKey] = $event"
+                                />
+                              </template>
+                            </template>
+                          </q-tab-panel>
+                          <q-tab-panel name="move">
+                            <div>Move</div>
+                          </q-tab-panel>
+                          <q-tab-panel name="copy">
+                            <div>Copy</div>
+                          </q-tab-panel>
+                        </q-tab-panels>
                       </template>
-                    </template>
 
                     <!-- ── View mode ── -->
                     <template v-else>
@@ -2094,6 +2172,7 @@ const openChoiceImagePreview = (
   border-radius: 10px;
   padding: 8px;
   background: color-mix(in srgb, var(--theme-bg, #fff) 92%, #ffffff);
+  max-width: 200px;
 }
 
 .question-type-edit-preview-thumb {
@@ -2340,4 +2419,20 @@ const openChoiceImagePreview = (
   border-radius: 8px;
 }
 
+.question-card-side-absolute {
+  /* position: absolute; */
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.custom-question-card {
+  position: relative;
+}
+
 </style>
+
+
