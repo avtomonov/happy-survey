@@ -72,7 +72,9 @@ const loadLinks = async (): Promise<void> => {
   try {
     // Получаем все вопросы для текущего цикла
     const questions = await authStore.getQuestions(cycleId)
-    const questionIds = questions.map(q => q.questionId ?? q.id).filter(Boolean)
+    const questionIds = questions
+      .map(q => q.questionId ?? q.id)
+      .filter((id): id is string => typeof id === 'string' && !!id)
     if (questionIds.length > 0) {
       await authStore.linkQuestionsToSurvey(surveyId, questionIds)
     }
