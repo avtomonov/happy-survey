@@ -983,6 +983,42 @@ export const useAuthStore = defineStore('AuthStore', {
         return false
       }
     },
+    async changeStudyLogo(file: File): Promise<string> {
+      const studyId = this.studyId
+      if (!studyId) throw new Error('Не найден studyId для загрузки логотипа')
+      const formData = new FormData()
+      formData.append('studyId', studyId)
+      formData.append('logo', file)
+
+      const response = await fetch(
+        `${this.getAdminApiBase()}/admin/change-study-logo`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: this.getAuthHeaders()['Authorization'],
+            locale: 'ru',
+            Accept: 'application/json',
+          },
+          body: formData,
+        },
+      )
+      if (!response.ok) {
+        throw new Error(`Ошибка загрузки логотипа исследования: ${response.statusText}`)
+      }
+      // После успешной загрузки — получить url логотипа из get-studies
+      const studies = await this.getStudies()
+      const study = studies.find(s => s.id === studyId || s.studyId === studyId)
+      let logoUrl = ''
+      if (study) {
+        logoUrl = study.logoUrl || study.logo_url || (study.logo && (study.logo.url || study.logo.logoUrl || study.logo.logo_url)) || ''
+        if (logoUrl && logoUrl.startsWith('/')) {
+          let base = this.getAdminApiBase()
+          base = base.replace(/\/api(\/v1)?$/, '')
+          logoUrl = base + logoUrl
+        }
+      }
+      return logoUrl
+    }
   },
 })
 

@@ -230,6 +230,13 @@ const stopSurveyTitleEdit = async (): Promise<void> => {
 }
 
 onMounted(async () => {
+  // Всегда запрашиваем список исследований при заходе на страницу
+  try {
+    await authStore.getStudies()
+  } catch (e) {
+    // Ошибку можно залогировать или проигнорировать, если не критично
+    console.error('Ошибка загрузки исследований:', e)
+  }
   const cycleId = authStore.cycleId
   if (cycleId) {
     await Promise.all([
@@ -712,11 +719,24 @@ const mainContentInnerStyle = computed(() => ({
   margin: '0 auto',
 }))
 
-const handleLogoUpload = (file: File | null): void => {
+const handleLogoUpload = async (file: File | null): Promise<void> => {
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = (e) => { uploadedLogo.value = e.target?.result as string }
-  reader.readAsDataURL(file)
+  try {
+    const logoUrl = await authStore.changeStudyLogo(file)
+    if (logoUrl) {
+      uploadedLogo.value = logoUrl
+    } else {
+      // fallback: показать превью локально, если url не вернулся
+      const reader = new FileReader()
+      reader.onload = (ev) => { uploadedLogo.value = ev.target?.result as string }
+      reader.readAsDataURL(file)
+    }
+  } catch (e) {
+    // fallback: показать превью локально, если загрузка не удалась
+    const reader = new FileReader()
+    reader.onload = (ev) => { uploadedLogo.value = ev.target?.result as string }
+    reader.readAsDataURL(file)
+  }
 }
 
 const previewDialogOpen = ref(false)
