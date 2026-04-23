@@ -253,10 +253,15 @@ onMounted(loadLinks)
 .link-preview-frame-wrap {
   width: 100%;
   max-width: 420px;
+  height: 600px;
   border: 1px solid #e0e0e0;
   border-radius: 10px;
   overflow: hidden;
   background: #fff;
+
+  > iframe {
+    height: 100%;
+  }
 }
 
 .link-preview-frame {
