@@ -1424,8 +1424,8 @@ const openChoiceImagePreview = (
                           <q-tab name="edit" label="Вопрос" />
                           <q-tab name="options" label="Варианты" />
                           <q-tab name="logic" label="Логика" />
-                          <q-tab name="move" label="Переместить" />
-                          <q-tab name="copy" label="Копировать" />
+                          <!-- <q-tab name="move" label="Переместить" />
+                          <q-tab name="copy" label="Копировать" /> -->
                         </q-tabs>
                         <q-tab-panels
                           v-model="editingDrafts[question.questionId].editTab"

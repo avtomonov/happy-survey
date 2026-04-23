@@ -130,6 +130,10 @@ const setCanvasRef = (el: unknown, id: string): void => {
 }
 
 onMounted(loadLinks)
+
+const emailsInput = ref('')
+const emailSubject = ref('Приглашение пройти опрос')
+const emailBody = ref(`<p>Здравствуйте!</p><p>Приглашаем вас принять участие в нашем корпоративном опросе. Ваше мнение очень важно для нас — это поможет сделать работу в компании лучше.</p><p><strong>Ссылка для прохождения:</strong> [ссылка будет добавлена автоматически]</p><p>Опрос займёт не более 5–10 минут. Все ответы анонимны.</p><p>С уважением,<br/>Команда Happy Job</p>`)
 </script>
 
 <template>
@@ -235,6 +239,74 @@ onMounted(loadLinks)
         Ссылок пока нет. Нажмите «Создать общую ссылку».
       </div>
 
+          <!-- Email рассылка -->
+    <div class="q-mt-xl">
+      <q-separator spaced />
+      <div class="text-h5 q-mb-md">Разослать приглашения по email</div>
+      <div class="row q-col-gutter-md">
+        <div class="col-12 col-md-5">
+          <q-card flat bordered class="q-pa-md bg-grey-1">
+            <div class="text-subtitle2 q-mb-sm">Email-адреса участников</div>
+            <q-input
+              v-model="emailsInput"
+              type="textarea"
+              autogrow
+              placeholder="Введите email-адреса через запятую или с новой строки"
+              class="q-mb-sm"
+            />
+            <div class="text-caption text-grey-7 q-mb-sm">Можно вставить список адресов из Excel/Google Sheets</div>
+            <q-btn label="Добавить адреса" color="primary" flat :disable="true" />
+          </q-card>
+        </div>
+        <div class="col-12 col-md-7">
+          <q-card flat bordered class="q-pa-md bg-grey-1">
+            <div class="text-subtitle2 q-mb-sm">Шаблон письма</div>
+            <q-input
+              v-model="emailSubject"
+              label="Тема письма"
+              class="q-mb-sm"
+              :dense="true"
+            />
+            <q-editor
+              v-model="emailBody"
+              min-height="150px"
+              placeholder="Текст письма..."
+              toolbar-text-color="grey-8"
+              toolbar-bg="grey-2"
+              :dense="true"
+              class="q-mb-md"
+            />
+            <!-- Предпросмотр письма -->
+            <div class="email-preview q-mb-md">
+              <div class="email-preview__label text-caption text-grey-6 q-mb-xs">Предпросмотр письма</div>
+              <div class="email-preview__window">
+                <div class="email-preview__header">
+                  <div class="email-preview__dots">
+                    <span /><span /><span />
+                  </div>
+                  <div class="email-preview__bar">📧 Входящие</div>
+                </div>
+                <div class="email-preview__body">
+                  <div class="email-preview__meta">
+                    <div class="email-preview__avatar">HJ</div>
+                    <div class="email-preview__from">
+                      <div class="text-weight-medium" style="font-size:13px">Happy Job <span class="text-grey-6" style="font-weight:400">&lt;noreply@happyjob.ru&gt;</span></div>
+                      <div class="text-caption text-grey-6">Кому: участник@компания.ru</div>
+                    </div>
+                    <div class="text-caption text-grey-5 q-ml-auto">Сейчас</div>
+                  </div>
+                  <div class="email-preview__subject text-weight-bold q-mb-sm">{{ emailSubject || 'Тема письма' }}</div>
+                  <div class="email-preview__content" v-html="emailBody || 'Текст письма...'" />
+                </div>
+              </div>
+            </div>
+            <q-btn label="Отправить приглашения" color="primary" unelevated :disable="true" />
+            <div class="text-caption text-grey-7 q-mt-sm">Функция рассылки будет доступна в ближайших обновлениях</div>
+          </q-card>
+        </div>
+      </div>
+    </div>
+
 
     </q-page>
   </AppLayout>
@@ -269,5 +341,95 @@ onMounted(loadLinks)
   width: 100%;
   height: min(70vh, 560px);
   border: 0;
+}
+
+.email-preview__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.email-preview__window {
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  background: #fff;
+}
+
+.email-preview__header {
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.email-preview__dots {
+  display: flex;
+  gap: 5px;
+  span {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #d0d0d0;
+    &:nth-child(1) { background: #ff5f57; }
+    &:nth-child(2) { background: #ffbd2e; }
+    &:nth-child(3) { background: #27c93f; }
+  }
+}
+
+.email-preview__bar {
+  font-size: 12px;
+  color: #888;
+  flex: 1;
+  text-align: center;
+}
+
+.email-preview__body {
+  padding: 20px 24px 24px;
+}
+
+.email-preview__meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.email-preview__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.email-preview__from {
+  flex: 1;
+}
+
+.email-preview__subject {
+  font-size: 16px;
+  color: #1a1a1a;
+}
+
+.email-preview__content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+  p {
+    margin: 0 0 10px;
+  }
 }
 </style>
