@@ -266,6 +266,7 @@ interface QuestionDraft {
   subQuestions: QuestionDraftSubQuestion[]
   localizedAttributes: Record<string, any>
   attributes: Record<string, any>
+  editTab: string
 }
 
 const editingDrafts = ref<Record<string, QuestionDraft>>({})
