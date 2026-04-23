@@ -28,6 +28,11 @@ interface StudyListItem {
   type?: string
   clientId?: string
   token?: string
+  // Для поддержки логотипа (устранение ошибок типов)
+  logo?: any
+  logoUrl?: string
+  logo_url?: string
+  studyId?: string
 }
 
 interface PlanCyclePayload {

@@ -232,14 +232,12 @@ const stopSurveyTitleEdit = async (): Promise<void> => {
 onMounted(async () => {
   // Всегда запрашиваем список исследований при заходе на страницу
   try {
-    debugger
     const studies = await authStore.getStudies()
     // Найти активное исследование по studyId
     const activeStudyId = authStore.studyId
     let logoUrl = null
     if (Array.isArray(studies) && activeStudyId) {
       const found = studies.find((s) => {
-        console.log(s.id, activeStudyId)
         return s.id === activeStudyId
       })
       logoUrl = found?.logo || null
@@ -2394,6 +2392,7 @@ const openChoiceImagePreview = (
 /* Иконка перетаскивания — скрыта, появляется при ховере на карточку */
 .drag-handle-icon {
   cursor: grab;
+  left: 3px;
   opacity: 0;
   transition: opacity 0.22s;
   margin-right: 4px;
