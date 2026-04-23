@@ -253,6 +253,12 @@ onMounted(async () => {
       loadFromBackend(cycleId),
       loadSurveyMeta(cycleId),
     ])
+    // После загрузки вопросов — линковка
+    const surveyId = authStore.surveyId
+    if (surveyId) {
+      const questionIds = localQuestions.value.map(q => q.questionId).filter(Boolean)
+      await authStore.linkQuestionsToSurvey(surveyId, questionIds)
+    }
   } else {
     localQuestions.value = []
   }
@@ -543,6 +549,13 @@ const createNewQuestion = async (type: string, insertIndex?: number): Promise<vo
     // Сортируем по queueCycle
     localQuestions.value = [...localQuestions.value].sort((a, b) => a.queueCycle - b.queueCycle)
 
+    // --- Линкуем вопросы к опросу ---
+    const surveyId = authStore.surveyId
+    if (surveyId) {
+      const questionIds = localQuestions.value.map(q => q.questionId).filter(Boolean)
+      await authStore.linkQuestionsToSurvey(surveyId, questionIds)
+    }
+
     startEdit(newQuestion)
     newQuestionId.value = newId
     setTimeout(() => {
@@ -568,6 +581,12 @@ const deleteQuestion = async (questionId: string): Promise<void> => {
     await authStore.archiveQuestion(questionId)
     localQuestions.value = localQuestions.value.filter((q) => q.questionId !== questionId)
     cancelEdit(questionId)
+    // --- Линкуем вопросы к опросу после удаления ---
+    const surveyId = authStore.surveyId
+    if (surveyId) {
+      const questionIds = localQuestions.value.map(q => q.questionId).filter(Boolean)
+      await authStore.linkQuestionsToSurvey(surveyId, questionIds)
+    }
   } catch (e) {
     errorMap.value[questionId] = e instanceof Error ? e.message : 'Ошибка удаления вопроса'
   } finally {
