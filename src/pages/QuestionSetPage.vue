@@ -232,7 +232,19 @@ const stopSurveyTitleEdit = async (): Promise<void> => {
 onMounted(async () => {
   // Всегда запрашиваем список исследований при заходе на страницу
   try {
-    await authStore.getStudies()
+    debugger
+    const studies = await authStore.getStudies()
+    // Найти активное исследование по studyId
+    const activeStudyId = authStore.studyId
+    let logoUrl = null
+    if (Array.isArray(studies) && activeStudyId) {
+      const found = studies.find((s) => {
+        console.log(s.id, activeStudyId)
+        return s.id === activeStudyId
+      })
+      logoUrl = found?.logo || null
+    }
+    uploadedLogo.value = logoUrl
   } catch (e) {
     // Ошибку можно залогировать или проигнорировать, если не критично
     console.error('Ошибка загрузки исследований:', e)
