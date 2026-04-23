@@ -56,6 +56,7 @@ export interface QuestionTypeConfig {
 const DEFAULT_TEMPLATE_CYCLE_ID = import.meta.env.VITE_APP_TEMPLATE_CYCLE_ID as string | undefined ?? '1ef038f6-5631-61b6-a87c-0a00ac070060'
 
 export const QUESTION_TYPE_CONFIGS: QuestionTypeConfig[] = [
+  { id: 'engagement', label: 'Исследование вовлеченности', templateCycleId: DEFAULT_TEMPLATE_CYCLE_ID },
   { id: 'nps', label: 'NPS', templateCycleId: DEFAULT_TEMPLATE_CYCLE_ID },
   { id: 'csat', label: 'CSAT', templateCycleId: DEFAULT_TEMPLATE_CYCLE_ID },
   { id: 'ces', label: 'CES', templateCycleId: DEFAULT_TEMPLATE_CYCLE_ID },

@@ -1,7 +1,7 @@
 <template>
   <div class="schema-field">
-    <!-- bool → toggle -->
-    <q-toggle
+    <!-- bool → checkbox -->
+    <QCheckbox
       v-if="fieldDef.type === 'bool'"
       :model-value="modelValue ?? false"
       :label="fieldDef.caption"
@@ -82,25 +82,15 @@
         />
       </div>
 
-      <!-- URL text input + upload button -->
+      <!-- Upload button only -->
       <div class="row q-gutter-sm items-center">
-        <q-input
-          :model-value="imageRawValue"
-          dense
-          outlined
-          label="URL картинки"
-          class="col"
-          @update:model-value="emitImageUrl($event)"
-        />
         <q-btn
-          flat
-          dense
-          round
+          unelevated
           icon="upload"
           color="primary"
           size="sm"
           :loading="uploading"
-          title="Загрузить файл"
+          label="Загрузить файл"
           @click="triggerFileInput"
         />
         <input
@@ -128,6 +118,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { QCheckbox } from 'quasar'
 import type { FieldDef } from '../data/questionSchemas'
 import { useAuthStore } from '../stores/auth'
 
@@ -177,36 +168,6 @@ const resolveImageKind = (val: any): 'image' | 'video' => {
 }
 
 const imageKind = computed(() => resolveImageKind(props.modelValue))
-const imageRawValue = computed(() => resolveImageUrl(props.modelValue))
-
-const emitImageUrl = (value: string | number | null): void => {
-  const url = String(value ?? '')
-  const trimmed = url.trim()
-  if (!trimmed) {
-    emit('update:modelValue', '')
-    return
-  }
-
-  if (props.modelValue && typeof props.modelValue === 'object' && 'url' in props.modelValue) {
-    emit('update:modelValue', { ...props.modelValue, url: trimmed })
-    return
-  }
-
-  if (typeof props.modelValue === 'string') {
-    try {
-      const parsed = JSON.parse(props.modelValue)
-      if (parsed && typeof parsed === 'object' && 'url' in parsed) {
-        emit('update:modelValue', { ...parsed, url: trimmed })
-        return
-      }
-    } catch {
-      // Keep plain URL string as-is.
-    }
-  }
-
-  emit('update:modelValue', trimmed)
-}
-
 const triggerFileInput = (): void => {
   fileInputRef.value?.click()
 }
@@ -220,7 +181,8 @@ const handleFileChange = async (event: Event): Promise<void> => {
   uploadError.value = ''
   try {
     const uploadedMedia = await authStore.uploadPublicFile(file)
-    emit('update:modelValue', uploadedMedia)
+    // API поля атрибутов ожидают строковый URL, а не объект с метаданными.
+    emit('update:modelValue', uploadedMedia.url)
   } catch (e) {
     uploadError.value = e instanceof Error ? e.message : 'Ошибка загрузки'
   } finally {

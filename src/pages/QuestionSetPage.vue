@@ -280,6 +280,13 @@ const getActiveSchema = (questionId: string) => {
   return type ? QUESTION_SCHEMAS[type] : undefined
 }
 
+const shouldRenderSchemaField = (fieldKey: string, fieldDef: { caption?: string }): boolean => {
+  const caption = String(fieldDef?.caption ?? '')
+  const isTextSizeByKey = /fontSize/i.test(fieldKey)
+  const isTextSizeByCaption = /размер\s+текста/i.test(caption.toLowerCase())
+  return !isTextSizeByKey && !isTextSizeByCaption
+}
+
 const startEdit = (question: SurveyQuestion): void => {
   const schema = QUESTION_SCHEMAS[question.type]
   editingDrafts.value[question.questionId] = {
@@ -327,15 +334,6 @@ const toggleEdit = (question: SurveyQuestion): void => {
   }
 
   startEdit(question)
-}
-
-// Re-initialize attributes when type changes in the editor
-const onDraftTypeChange = (questionId: string, newType: string): void => {
-  const draft = editingDrafts.value[questionId]
-  if (!draft) return
-  const schema = QUESTION_SCHEMAS[newType]
-  draft.localizedAttributes = getSchemaDefaults(schema?.localizedAttributes)
-  draft.attributes = getSchemaDefaults(schema?.attributes)
 }
 
 const saveQuestion = async (questionId: string): Promise<void> => {
@@ -694,7 +692,6 @@ const selectedLayout = ref('centered')
 const customBgColor = ref('#ffffff')
 
 const fontOptions = ['Стандартный', 'Roboto', 'Open Sans', 'Montserrat', 'Playfair Display']
-const presetColors = ['#ffffff', '#f5f5f5', '#e3f2fd', '#fce4ec', '#f3e5f5', '#e8f5e9']
 
 const fontFamilyByOption: Record<string, string> = {
   Стандартный: 'Helvetica, Arial, sans-serif',
@@ -729,7 +726,16 @@ const brokenChoiceImages = ref<Record<string, boolean>>({})
 const getQuestionPreviewSrc = (type: string): string => `/question-type-previews/${type}.svg`
 
 const normalizeImageUrl = (value: unknown): string => {
-  return typeof value === 'string' ? value.trim() : ''
+  // Handle new format: string URL
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  // Handle old format: { type, url } object
+  if (value && typeof value === 'object' && 'url' in (value as Record<string, unknown>)) {
+    const url = (value as Record<string, unknown>).url
+    return typeof url === 'string' ? url.trim() : ''
+  }
+  return ''
 }
 
 const getChoiceImageSrc = (questionId: string, choiceId: string, attributes?: Record<string, any>): string => {
@@ -744,6 +750,10 @@ const getChoiceImageSrc = (questionId: string, choiceId: string, attributes?: Re
 
 const hasQuestionPreview = (type: string): boolean => {
   return !!type && !brokenPreviewTypes.value[type]
+}
+
+const getQuestionTypeName = (type: string): string => {
+  return SURVEY_QUESTION_TYPES.find((item) => item.type === type)?.typeName ?? type
 }
 
 const markQuestionPreviewMissing = (type: string): void => {
@@ -1245,20 +1255,25 @@ const openChoiceImagePreview = (
                         >{{ index + 1 }}</span>
                       </div>
                       <template v-if="isEditing(question.questionId)">
-                        <!-- Тип вопроса -->
-                        <q-select
-                          :model-value="editingDrafts[question.questionId].type"
-                          :options="SURVEY_QUESTION_TYPES"
-                          option-value="type"
-                          option-label="typeName"
-                          emit-value
-                          map-options
-                          dense
-                          outlined
-                          label="Тип вопроса"
-                          class="q-mb-sm"
-                          @update:model-value="(v) => { editingDrafts[question.questionId].type = v; onDraftTypeChange(question.questionId, v) }"
-                        />
+                        <div class="question-type-edit-preview q-mb-sm">
+                          <div
+                            v-if="hasQuestionPreview(editingDrafts[question.questionId].type)"
+                            class="question-type-edit-preview-thumb"
+                          >
+                            <img
+                              :src="getQuestionPreviewSrc(editingDrafts[question.questionId].type)"
+                              :alt="`Превью ${editingDrafts[question.questionId].type}`"
+                              class="question-type-edit-preview-image"
+                              @error="markQuestionPreviewMissing(editingDrafts[question.questionId].type)"
+                            />
+                          </div>
+                          <div class="column justify-center q-gutter-xs min-width-0">
+                            <div class="text-caption text-grey-7">Тип вопроса</div>
+                            <div class="question-type-edit-preview-title">
+                              {{ getQuestionTypeName(editingDrafts[question.questionId].type) }}
+                            </div>
+                          </div>
+                        </div>
                         <!-- Заголовок -->
                         <q-input
                           v-model="editingDrafts[question.questionId].title"
@@ -1277,6 +1292,7 @@ const openChoiceImagePreview = (
                             :key="`la-${fieldKey}`"
                           >
                             <schema-field
+                              v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
                               :field-def="fieldDef"
                               :model-value="editingDrafts[question.questionId].localizedAttributes[fieldKey]"
                               class="q-mb-xs"
@@ -1401,13 +1417,14 @@ const openChoiceImagePreview = (
                           <!-- Choice attributes from schema -->
                           <div
                             v-if="getActiveSchema(question.questionId)?.choiceAttributeFields"
-                            class="choice-attrs-block q-pl-sm"
+                            class="choice-attrs-block"
                           >
                             <template
                               v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.choiceAttributeFields"
                               :key="`ca-${fieldKey}`"
                             >
                               <schema-field
+                                v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
                                 :field-def="fieldDef"
                                 :model-value="editingDrafts[question.questionId].choices[idx].attributes[fieldKey]"
                                 class="q-mb-xs"
@@ -1462,13 +1479,14 @@ const openChoiceImagePreview = (
                           <!-- SubQuestion attributes -->
                           <div
                             v-if="getActiveSchema(question.questionId)?.subQuestionAttributeFields"
-                            class="choice-attrs-block q-pl-sm"
+                            class="choice-attrs-block"
                           >
                             <template
                               v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.subQuestionAttributeFields"
                               :key="`sqa-${fieldKey}`"
                             >
                               <schema-field
+                                v-if="shouldRenderSchemaField(fieldKey, fieldDef)"
                                 :field-def="fieldDef"
                                 :model-value="editingDrafts[question.questionId].subQuestions[idx].attributes[fieldKey]"
                                 class="q-mb-xs"
@@ -1545,7 +1563,8 @@ const openChoiceImagePreview = (
                           label="Сохранить"
                           color="primary"
                           unelevated
-                          dense
+                          size="md"
+                          class="question-edit-action-btn"
                           :loading="isSaving(question.questionId)"
                           :disable="isSaving(question.questionId) || deletingMap[question.questionId]"
                           @click="saveQuestion(question.questionId)"
@@ -1553,7 +1572,8 @@ const openChoiceImagePreview = (
                         <q-btn
                           label="Отмена"
                           flat
-                          dense
+                          size="md"
+                          class="question-edit-action-btn"
                           :disable="isSaving(question.questionId) || deletingMap[question.questionId]"
                           @click="cancelEdit(question.questionId)"
                         />
@@ -2066,6 +2086,40 @@ const openChoiceImagePreview = (
   background: rgba(255, 255, 255, 0.5);
 }
 
+.question-type-edit-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--theme-border, #e0e0e0);
+  border-radius: 10px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--theme-bg, #fff) 92%, #ffffff);
+}
+
+.question-type-edit-preview-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4f8f2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.question-type-edit-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.question-type-edit-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--theme-text, #212121);
+}
+
 .question-preview-dialog-card {
   width: min(92vw, 760px);
   max-width: 760px;
@@ -2151,6 +2205,13 @@ const openChoiceImagePreview = (
   border-top: 1px dashed var(--theme-border, #e0e0e0);
   padding-top: 6px;
   margin-top: 4px;
+}
+
+.question-edit-action-btn {
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 
