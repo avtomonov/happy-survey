@@ -2222,7 +2222,7 @@ const openChoiceImagePreview = (
   border-radius: 10px;
   padding: 8px;
   background: color-mix(in srgb, var(--theme-bg, #fff) 92%, #ffffff);
-  max-width: 200px;
+  max-width: 300px;
 }
 
 .question-type-edit-preview-thumb {

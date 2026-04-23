@@ -13,6 +13,8 @@ const loginEmail = ref<string>('root@happy-job.wip')
 const loginPassword = ref<string>('d2NKGToi5jA8hD8rWs4K')
 const loginLoading = ref<boolean>(false)
 const loginMessage = ref<string>('')
+const consentPersonal = ref<boolean>(true)
+const consentUpdates = ref<boolean>(true)
 
 const onLogin = async (): Promise<void> => {
   loginMessage.value = ''
@@ -98,6 +100,17 @@ const onLogin = async (): Promise<void> => {
             autocomplete="current-password"
             required
           />
+        </div>
+
+        <div class="consent-group">
+          <label class="consent-item">
+            <input type="checkbox" v-model="consentPersonal" class="consent-checkbox" />
+            <span class="consent-text">Даю согласие на обработку персональных данных</span>
+          </label>
+          <label class="consent-item">
+            <input type="checkbox" v-model="consentUpdates" class="consent-checkbox" />
+            <span class="consent-text">Хочу получать обновления платформы, HR-дайджесты</span>
+          </label>
         </div>
 
         <q-btn
@@ -264,6 +277,64 @@ const onLogin = async (): Promise<void> => {
     font-size: 14px;
     font-weight: 600;
   }
+}
+
+.consent-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.consent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.consent-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  margin-top: 1px;
+  transition: background 0.2s, border-color 0.2s;
+  position: relative;
+
+  &:checked {
+    background: #61c13a;
+    border-color: #61c13a;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 0px;
+      width: 5px;
+      height: 10px;
+      border: 2px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg);
+    }
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(97, 193, 58, 0.2);
+  }
+}
+
+.consent-text {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.4;
 }
 
 .auth-message {
