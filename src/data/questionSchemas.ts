@@ -55,7 +55,7 @@ const CAPTIONS_FIELD: FieldDef = {
   defaultValue: ['', ''],
 }
 
-const IMAGE_URL_FIELD: FieldDef = { type: 'image', caption: 'Мультимедиа (URL)', defaultValue: '' }
+const IMAGE_URL_FIELD: FieldDef = { type: 'image', caption: 'Изображение', defaultValue: '' }
 
 const CHOICE_FONT_SIZE: FieldDef = {
   type: 'number',
@@ -63,7 +63,7 @@ const CHOICE_FONT_SIZE: FieldDef = {
   defaultValue: 100,
 }
 
-const CHOICE_IMAGE: FieldDef = { type: 'image', caption: 'Мультимедиа ответа (URL)', defaultValue: '' }
+const CHOICE_IMAGE: FieldDef = { type: 'image', caption: 'Изображение ', defaultValue: '' }
 
 const CHOICE_FIELDS_TITLE_MARK: Record<string, FieldDef> = {
   title: { type: 'text', caption: 'Текст ответа', defaultValue: '' },
@@ -179,7 +179,7 @@ export const QUESTION_SCHEMAS: Record<string, QuestionSchema> = {
       mark: { type: 'number', caption: 'Балл', defaultValue: 0 },
     },
     choiceAttributeFields: {
-      image: { type: 'image', caption: 'Мультимедиа ответа (URL)', defaultValue: '' },
+      image: { type: 'image', caption: 'Изображение ', defaultValue: '' },
       visualIndex: {
         type: 'number',
         caption: 'Отображать цвет и лицо как на позиции',
@@ -197,7 +197,7 @@ export const QUESTION_SCHEMAS: Record<string, QuestionSchema> = {
       captions: CAPTIONS_FIELD,
       image: {
         type: 'image',
-        caption: 'Мультимедиа (если нет картинки варианта, URL)',
+        caption: 'Изображение (если нет картинки варианта, URL)',
         defaultValue: '',
       },
     },
