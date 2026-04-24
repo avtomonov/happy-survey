@@ -511,7 +511,7 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
   </div> -->
 
   <AppLayout>
-    <q-page class="column items-center q-pa-md q-gutter-lg" style="justify-content: flex-start; padding-top: 40px">
+    <q-page class="column items-center" style="justify-content: flex-start; padding-top: 40px">
       <div
         class="text-h3 text-center fade-in-css"
         style="margin-bottom: 50px; margin-top: 100px;"
@@ -544,7 +544,7 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
         </div>
       </div>
 
-      <div v-if="!isLoading" class="survey-sections full-width">
+      <div v-if="!isLoading" class="survey-sections">
         <div
           v-for="category in surveyCardCategories"
           :key="category.id"
@@ -554,7 +554,7 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
             {{ category.title }}
           </div>
 
-          <div class="row q-gutter-md justify-center survey-card-grid">
+          <div class="survey-card-grid">
             <q-card
               v-for="(card, index) in category.cards"
               :key="card.id"
@@ -757,7 +757,10 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
 }
 
 .survey-sections {
+  width: 100%;
   max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .survey-section {
@@ -765,6 +768,10 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
 }
 
 .survey-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
   align-items: stretch;
 }
 
@@ -790,6 +797,7 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
   box-shadow: none;
   opacity: 0;
   transform: translateY(28px) scale(0.97);
+  flex-shrink: 0;
 }
 
 .goal-card::before {
@@ -906,9 +914,14 @@ const openExistingSurvey = async (survey: ExistingSurveyEntry): Promise<void> =>
     padding: 0 20px;
   }
 
+  .survey-card-grid {
+    justify-content: center;
+  }
+
   .goal-card {
-    width: 100%;
-    max-width: 320px;
+    width: calc(100% - 32px);
+    max-width: 360px;
+    flex-shrink: 0;
   }
 }
 /* Плавное появление вопроса только на CSS */
