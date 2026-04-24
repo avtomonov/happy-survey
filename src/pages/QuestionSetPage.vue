@@ -1465,7 +1465,6 @@ const openChoiceImagePreview = (
                           <q-tab-panel name="options">
                             <!-- Варианты ответов -->
                             <template v-if="draftHasChoices(question.questionId)">
-                              <q-separator class="q-my-xs" />
                               <div class="schema-section-title">
                                 {{ getActiveSchema(question.questionId)?.choicesTitle ?? 'Варианты ответов' }}
                               </div>
@@ -1612,9 +1611,7 @@ const openChoiceImagePreview = (
                             <div>Options</div>
                           </q-tab-panel>
                           <q-tab-panel name="logic">
-                            <div class="schema-section-title">Настройки вопроса</div>
                             <template v-if="getActiveSchema(question.questionId)?.attributes">
-                              <q-separator class="q-my-sm" />
                               <template
                                 v-for="(fieldDef, fieldKey) in getActiveSchema(question.questionId)?.attributes"
                                 :key="`a-${fieldKey}`"
